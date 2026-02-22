@@ -5,11 +5,13 @@ import { PieChart } from 'react-native-chart-kit';
 import { User, Settings, Bell, Shield, LogOut, ChevronRight, Save, Award, Zap, Target, Flame, Trophy, Camera, CheckCircle2 } from 'lucide-react-native';
 import { colors } from '../theme/colors';
 import { useApp } from '../context/AppContext';
+import PremiumModal from '../components/PremiumModal';
 
 const ProfileScreen = () => {
     const { user, updateUser, meals, streak, logout, weightHistory, logWeight } = useApp();
     const { width } = useWindowDimensions();
     const [name, setName] = useState(user.name);
+    const [showPremium, setShowPremium] = useState(false);
     const [age, setAge] = useState(user.age?.toString() || '25');
     const [weight, setWeight] = useState(user.weight.toString());
     const [height, setHeight] = useState(user.height?.toString() || '170');
@@ -113,8 +115,26 @@ const ProfileScreen = () => {
 
     return (
         <ScrollView style={styles.container}>
-            {/* Pro Status Card - Solo visible para usuarios PRO */}
-            {user.isPro && (
+            {/* Pro Status Card */}
+            {!user.isPro ? (
+                <View style={[styles.proSection, { marginBottom: 15 }]}>
+                    <TouchableOpacity
+                        style={styles.proCard}
+                        onPress={() => setShowPremium(true)}
+                    >
+                        <View style={styles.proInfo}>
+                            <View style={styles.proIconCircle}>
+                                <Zap size={24} color={colors.accent} fill={colors.accent} />
+                            </View>
+                            <View>
+                                <Text style={styles.proTitle}>Hazte NutriTrack PRO</Text>
+                                <Text style={styles.proStatus}>Desbloquea IA Vision y más ✨</Text>
+                            </View>
+                        </View>
+                        <ChevronRight size={20} color={colors.textSecondary} />
+                    </TouchableOpacity>
+                </View>
+            ) : (
                 <View style={[styles.proSection, { marginBottom: 15 }]}>
                     <View style={[styles.proCard, styles.proCardEnabled]}>
                         <View style={styles.proInfo}>
@@ -130,6 +150,11 @@ const ProfileScreen = () => {
                     </View>
                 </View>
             )}
+
+            <PremiumModal
+                visible={showPremium}
+                onClose={() => setShowPremium(false)}
+            />
 
             {/* Header */}
             <View style={styles.profileHeader}>

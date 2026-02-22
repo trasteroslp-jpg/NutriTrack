@@ -10,6 +10,7 @@ import CameraScanner from '../components/CameraScanner';
 import BarcodeScanner from '../components/BarcodeScanner';
 import VoiceScanner from '../components/VoiceScanner';
 import { Mic } from 'lucide-react-native';
+import PremiumModal from '../components/PremiumModal';
 
 const categories = ['Todo', 'Favoritos', 'Recetas', 'Proteínas', 'Carbohidratos', 'Vegetales', 'Frutas'];
 
@@ -23,6 +24,7 @@ const AddFoodScreen = () => {
     const [scannerVisible, setScannerVisible] = useState(false);
     const [barcodeVisible, setBarcodeVisible] = useState(false);
     const [voiceVisible, setVoiceVisible] = useState(false);
+    const [showPremium, setShowPremium] = useState(false);
 
     // Recipe Creator State
     const [recipeModalVisible, setRecipeModalVisible] = useState(false);
@@ -173,7 +175,7 @@ const AddFoodScreen = () => {
                         if (user.isPro) {
                             setScannerVisible(true);
                         } else {
-                            Alert.alert('🌟 Función Premium', 'IA Vision es una función NutriTrack PRO.');
+                            setShowPremium(true);
                         }
                     }}
                 >
@@ -182,11 +184,17 @@ const AddFoodScreen = () => {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                    style={[styles.scannerCard, { backgroundColor: 'rgba(56, 189, 248, 0.1)' }]}
-                    onPress={() => setVoiceVisible(true)}
+                    style={[styles.scannerCard, !user.isPro && styles.scannerCardLocked]}
+                    onPress={() => {
+                        if (user.isPro) {
+                            setVoiceVisible(true);
+                        } else {
+                            setShowPremium(true);
+                        }
+                    }}
                 >
-                    <Mic size={22} color={colors.macronutrients.carbs} />
-                    <Text style={[styles.scannerTitle, { color: colors.macronutrients.carbs }]}>Voz (AI)</Text>
+                    <Mic size={22} color={user.isPro ? colors.macronutrients.carbs : colors.textSecondary} />
+                    <Text style={[styles.scannerTitle, { color: user.isPro ? colors.macronutrients.carbs : colors.textSecondary }]}>Voz (AI)</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -199,6 +207,7 @@ const AddFoodScreen = () => {
             </View>
 
             <VoiceScanner visible={voiceVisible} onClose={() => setVoiceVisible(false)} />
+            <PremiumModal visible={showPremium} onClose={() => setShowPremium(false)} />
             {/* Search Bar */}
             <View style={styles.searchContainer}>
                 <View style={styles.searchInputWrapper}>
