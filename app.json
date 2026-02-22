@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "NutriTrack",
+    "slug": "nutri-track",
+    "scheme": "nutritrack",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": false,
+    "platforms": [
+      "android",
+      "ios"
+    ],
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.david.nutritrack"
+    },
+    "android": {
+      "package": "com.david.nutritrack",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
+    },
+    "plugins": [
+      "expo-web-browser"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "db844fef-e8c3-4bdb-b7fe-de25ececa9cf"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/db844fef-e8c3-4bdb-b7fe-de25ececa9cf"
+    }
+  }
+}

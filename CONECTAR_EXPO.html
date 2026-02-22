@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conectar NutriTrack - Expo Go</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f5f7fa;
+            color: #2c3e50;
+        }
+
+        .card {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        h1 {
+            color: #4CAF50;
+            margin-bottom: 20px;
+        }
+
+        img {
+            border: 10px solid #f0f0f0;
+            border-radius: 10px;
+        }
+
+        .url {
+            margin-top: 20px;
+            font-weight: bold;
+            background: #e8f5e9;
+            padding: 10px 20px;
+            border-radius: 10px;
+            color: #2e7d32;
+        }
+
+        p {
+            color: #7f8c8d;
+            max-width: 300px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="card">
+        <h1>NutriTrack MVP</h1>
+        <p>Escanea este código con la app <strong>Expo Go</strong> para ver tu aplicación.</p>
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=exp://192.168.1.131:8081" alt="QR Code">
+        <div class="url">exp://192.168.1.131:8081</div>
+        <p style="font-size: 0.8em; margin-top: 20px;">Asegúrate de estar en la misma red Wi-Fi.</p>
+    </div>
+</body>
+
+</html>
