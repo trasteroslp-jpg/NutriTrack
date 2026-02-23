@@ -11,7 +11,7 @@ const BarcodeScanner = ({ visible, onClose }) => {
     const [isSearching, setIsSearching] = useState(false);
     const [foundProduct, setFoundProduct] = useState(null); // Producto encontrado
     const [quantity, setQuantity] = useState('100');        // Gramos a añadir
-    const { addMeal } = useApp();
+    const { addMeal, addToGlobalCatalogue } = useApp();
 
     const handleBarCodeScanned = async ({ data }) => {
         if (scanned) return;
@@ -78,6 +78,17 @@ const BarcodeScanner = ({ visible, onClose }) => {
             carbs: Math.round(foundProduct.carbs100g * ratio),
             fat: Math.round(foundProduct.fat100g * ratio),
         });
+
+        // Alimentar la base de datos global
+        addToGlobalCatalogue({
+            name: foundProduct.name,
+            calories: foundProduct.calories100g,
+            protein: foundProduct.protein100g,
+            carbs: foundProduct.carbs100g,
+            fat: foundProduct.fat100g,
+            category: 'Escáner'
+        });
+
         setFoundProduct(null);
         setScanned(false);
         onClose();

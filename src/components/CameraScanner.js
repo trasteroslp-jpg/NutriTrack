@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, Image, ActivityIndicator, Alert, useWindowDimensions, ScrollView, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, Image, ActivityIndicator, Alert, useWindowDimensions, ScrollView, Dimensions, TextInput } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Camera, X, RefreshCw, Check, Sparkles } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
@@ -17,7 +17,7 @@ const CameraScanner = ({ visible, onClose }) => {
     const [capturedImage, setCapturedImage] = useState(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analysisResult, setAnalysisResult] = useState(null);
-    const { addMeal } = useApp();
+    const { addMeal, addToGlobalCatalogue } = useApp();
     const cameraRef = useRef(null);
 
     if (!permission) return <View />;
@@ -76,7 +76,14 @@ const CameraScanner = ({ visible, onClose }) => {
                 const mockResult = [
                     { name: 'Ensalada Mixta', weight: 200, calories: 120, protein: 4, carbs: 12, fat: 8 },
                     { name: 'Pollo Parrilla', weight: 150, calories: 250, protein: 35, carbs: 0, fat: 12 },
-                ];
+                ].map(item => ({
+                    ...item,
+                    originalWeight: item.weight,
+                    calPerGram: item.calories / item.weight,
+                    protPerGram: item.protein / item.weight,
+                    carbsPerGram: item.carbs / item.weight,
+                    fatPerGram: item.fat / item.weight,
+                }));
                 setAnalysisResult(mockResult);
                 setIsAnalyzing(false);
             }, 2500);
@@ -96,7 +103,7 @@ const CameraScanner = ({ visible, onClose }) => {
                 body: JSON.stringify({
                     contents: [{
                         parts: [
-                            { text: "Identifica los alimentos de este plato. Estima peso, calorías y macros (P/C/G) para cada ingrediente. Responde SOLO en JSON plano: [{\"name\": \"...\", \"weight\": 100, \"calories\": 200, \"protein\": 10, \"carbs\": 20, \"fat\": 5}]" },
+                            { text: "Identifica los alimentos de este plato. Estima peso, calorías y macros (P/C/G) para cada ingrediente. MUY IMPORTANTE: Responde con los nombres de los alimentos en ESPAÑOL. Responde SOLO en JSON plano: [{\"name\": \"...\", \"weight\": 100, \"calories\": 200, \"protein\": 10, \"carbs\": 20, \"fat\": 5}]" },
                             { inline_data: { mime_type: "image/jpeg", data: base64 } }
                         ]
                     }]
@@ -129,7 +136,16 @@ const CameraScanner = ({ visible, onClose }) => {
             const cleanedJson = aiText.substring(jsonStart, jsonEnd);
             const result = JSON.parse(cleanedJson);
 
-            setAnalysisResult(result);
+            // Store original per-gram ratios for proportional recalculation
+            const withRatios = result.map(item => ({
+                ...item,
+                originalWeight: item.weight || 100,
+                calPerGram: item.calories / (item.weight || 100),
+                protPerGram: item.protein / (item.weight || 100),
+                carbsPerGram: item.carbs / (item.weight || 100),
+                fatPerGram: item.fat / (item.weight || 100),
+            }));
+            setAnalysisResult(withRatios);
         } catch (e) {
             console.error(e);
             Alert.alert("Error de IA", "No se pudo conectar con el servicio de análisis real.");
@@ -137,6 +153,21 @@ const CameraScanner = ({ visible, onClose }) => {
         } finally {
             setIsAnalyzing(false);
         }
+    };
+
+    const updateItemWeight = (index, newWeightStr) => {
+        const newWeight = parseFloat(newWeightStr) || 0;
+        setAnalysisResult(prev => prev.map((item, i) => {
+            if (i !== index) return item;
+            return {
+                ...item,
+                weight: newWeight,
+                calories: Math.round(newWeight * item.calPerGram),
+                protein: Math.round(newWeight * item.protPerGram * 10) / 10,
+                carbs: Math.round(newWeight * item.carbsPerGram * 10) / 10,
+                fat: Math.round(newWeight * item.fatPerGram * 10) / 10,
+            };
+        }));
     };
 
     const confirmAndAdd = () => {
@@ -148,6 +179,17 @@ const CameraScanner = ({ visible, onClose }) => {
                 protein: item.protein,
                 carbs: item.carbs,
                 fat: item.fat,
+            });
+
+            // Alimentar la base de datos global (normalizar por 100g)
+            const ratio = 100 / (item.weight || 100);
+            addToGlobalCatalogue({
+                name: item.name,
+                calories: Math.round(item.calories * ratio),
+                protein: Math.round(item.protein * ratio),
+                carbs: Math.round(item.carbs * ratio),
+                fat: Math.round(item.fat * ratio),
+                category: 'IA Vision'
             });
         });
         Alert.alert('¡Éxito!', 'Alimentos añadidos al diario.');
@@ -205,16 +247,42 @@ const CameraScanner = ({ visible, onClose }) => {
                                 <ScrollView style={styles.resultList}>
                                     {analysisResult.map((item, index) => (
                                         <View key={index} style={styles.resultItem}>
-                                            <View style={styles.itemMain}>
+                                            <View style={styles.itemHeader}>
                                                 <Text style={styles.itemName}>{item.name}</Text>
-                                                <Text style={styles.itemWeight}>{item.weight}g estimado</Text>
-                                            </View>
-                                            <View style={styles.itemValues}>
                                                 <Text style={styles.itemCalories}>{item.calories} kcal</Text>
-                                                <Text style={styles.macroMini}>P:{item.protein} C:{item.carbs} G:{item.fat}</Text>
+                                            </View>
+                                            <View style={styles.itemEditRow}>
+                                                <View style={styles.weightEditWrapper}>
+                                                    <TextInput
+                                                        style={styles.weightEditInput}
+                                                        value={String(item.weight)}
+                                                        onChangeText={(val) => updateItemWeight(index, val)}
+                                                        keyboardType="numeric"
+                                                        selectTextOnFocus
+                                                    />
+                                                    <Text style={styles.weightEditUnit}>g</Text>
+                                                </View>
+                                                <View style={styles.macroChips}>
+                                                    <View style={[styles.macroChip, { backgroundColor: 'rgba(239,68,68,0.1)' }]}>
+                                                        <Text style={[styles.macroChipText, { color: '#EF4444' }]}>P:{item.protein}</Text>
+                                                    </View>
+                                                    <View style={[styles.macroChip, { backgroundColor: 'rgba(245,158,11,0.1)' }]}>
+                                                        <Text style={[styles.macroChipText, { color: '#F59E0B' }]}>C:{item.carbs}</Text>
+                                                    </View>
+                                                    <View style={[styles.macroChip, { backgroundColor: 'rgba(59,130,246,0.1)' }]}>
+                                                        <Text style={[styles.macroChipText, { color: '#3B82F6' }]}>G:{item.fat}</Text>
+                                                    </View>
+                                                </View>
                                             </View>
                                         </View>
                                     ))}
+                                    {/* Total summary */}
+                                    <View style={styles.totalRow}>
+                                        <Text style={styles.totalLabel}>Total</Text>
+                                        <Text style={styles.totalValue}>
+                                            {analysisResult.reduce((s, i) => s + i.calories, 0)} kcal
+                                        </Text>
+                                    </View>
                                 </ScrollView>
                                 <View style={styles.actionButtons}>
                                     <TouchableOpacity style={styles.retryButton} onPress={resetScanner}>
@@ -259,12 +327,20 @@ const styles = StyleSheet.create({
     resultHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
     resultTitle: { fontSize: 20, fontWeight: '800', color: colors.text, marginLeft: 10 },
     resultList: { maxHeight: SCREEN_HEIGHT * 0.35 },
-    resultItem: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
-    itemName: { fontSize: 16, fontWeight: '700', color: colors.text },
-    itemWeight: { fontSize: 13, color: colors.textSecondary },
-    itemValues: { alignItems: 'flex-end' },
+    resultItem: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
+    itemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+    itemName: { fontSize: 16, fontWeight: '700', color: colors.text, flex: 1 },
     itemCalories: { fontSize: 16, fontWeight: '800', color: colors.primary },
-    macroMini: { fontSize: 11, color: colors.textSecondary },
+    itemEditRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    weightEditWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.background, borderRadius: 10, paddingHorizontal: 10, borderWidth: 1, borderColor: colors.border, minWidth: 90 },
+    weightEditInput: { height: 38, fontSize: 15, fontWeight: '700', color: colors.text, textAlign: 'right', minWidth: 45, paddingRight: 2 },
+    weightEditUnit: { color: colors.textSecondary, fontWeight: '700', fontSize: 13, marginLeft: 2 },
+    macroChips: { flexDirection: 'row', gap: 6 },
+    macroChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+    macroChipText: { fontSize: 11, fontWeight: '700' },
+    totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 14, marginTop: 4 },
+    totalLabel: { fontSize: 15, fontWeight: '700', color: colors.textSecondary },
+    totalValue: { fontSize: 18, fontWeight: '800', color: colors.primary },
     actionButtons: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 20 },
     retryButton: { padding: 15, borderRadius: 12, backgroundColor: colors.border, flex: 0.4, alignItems: 'center' },
     retryText: { fontWeight: '600', color: colors.text },

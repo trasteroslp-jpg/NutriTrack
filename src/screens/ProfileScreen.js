@@ -1,23 +1,33 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, TextInput, Alert, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, TextInput, Alert, useWindowDimensions, Dimensions, Switch } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { PieChart } from 'react-native-chart-kit';
-import { User, Settings, Bell, Shield, LogOut, ChevronRight, Save, Award, Zap, Target, Flame, Trophy, Camera, CheckCircle2 } from 'lucide-react-native';
+import { User, Camera, Settings, ChevronRight, LogOut, Trophy, Target, Zap, Flame, CheckCircle2, Crown, Sparkles, Activity, RefreshCw, Award } from 'lucide-react-native';
 import { colors } from '../theme/colors';
 import { useApp } from '../context/AppContext';
+import { useNavigation } from '@react-navigation/native';
 import PremiumModal from '../components/PremiumModal';
+import { PieChart } from 'react-native-chart-kit';
 
 const ProfileScreen = () => {
-    const { user, updateUser, meals, streak, logout, weightHistory, logWeight } = useApp();
+    const { user, updateUser, meals, streak, logout, weightHistory, logWeight, loginWithEmail, syncWeightFromHealth, isNewUser, setIsNewUser } = useApp();
+    const navigation = useNavigation();
     const { width } = useWindowDimensions();
     const [name, setName] = useState(user.name);
     const [showPremium, setShowPremium] = useState(false);
-    const [age, setAge] = useState(user.age?.toString() || '25');
-    const [weight, setWeight] = useState(user.weight.toString());
-    const [height, setHeight] = useState(user.height?.toString() || '170');
+    const [age, setAge] = useState(String(user.age));
+    const [weight, setWeight] = useState(String(user.weight));
+    const [height, setHeight] = useState(String(user.height));
     const [gender, setGender] = useState(user.gender || 'male');
+    const [isSyncing, setIsSyncing] = useState(false);
     const [activityLevel, setActivityLevel] = useState(user.activityLevel || 1.2);
     const [goal, setGoal] = useState(user.goal || 'maintain');
+
+    // Sincronizar peso del perfil cuando cambia desde Stats (logWeight)
+    React.useEffect(() => {
+        if (user.weight && String(user.weight) !== weight) {
+            setWeight(String(user.weight));
+        }
+    }, [user.weight]);
 
     // Calculate today's stats for badges
     const today = new Date().toISOString().split('T')[0];
@@ -45,6 +55,8 @@ const ProfileScreen = () => {
             goal,
             ...nutrients
         });
+        // Clear new user flag after profile is updated
+        if (isNewUser) setIsNewUser(false);
     }, [name, age, weight, height, gender, activityLevel, goal]);
 
     const pickImage = async () => {
@@ -111,24 +123,35 @@ const ProfileScreen = () => {
         return { label: 'Obesidad', color: colors.danger };
     };
 
+    const handleSyncHealthConnect = async () => {
+        setIsSyncing(true);
+        try {
+            await syncWeightFromHealth();
+            Alert.alert("Éxito", "Peso sincronizado desde Health Connect.");
+        } catch (error) {
+            console.error("Error syncing weight from Health Connect:", error);
+            Alert.alert("Error", "No se pudo sincronizar el peso desde Health Connect.");
+        } finally {
+            setIsSyncing(false);
+        }
+    };
 
 
     return (
         <ScrollView style={styles.container}>
-            {/* Pro Status Card */}
-            {!user.isPro ? (
+            {user.isPro ? (
                 <View style={[styles.proSection, { marginBottom: 15 }]}>
                     <TouchableOpacity
                         style={styles.proCard}
-                        onPress={() => setShowPremium(true)}
+                        onPress={() => navigation.navigate('Subscription')}
                     >
                         <View style={styles.proInfo}>
                             <View style={styles.proIconCircle}>
-                                <Zap size={24} color={colors.accent} fill={colors.accent} />
+                                <Trophy size={24} color={colors.accent} />
                             </View>
                             <View>
-                                <Text style={styles.proTitle}>Hazte NutriTrack PRO</Text>
-                                <Text style={styles.proStatus}>Desbloquea IA Vision y más ✨</Text>
+                                <Text style={styles.proTitle}>Gestión de Suscripción</Text>
+                                <Text style={styles.proStatus}>Ver detalles del plan PRO ✨</Text>
                             </View>
                         </View>
                         <ChevronRight size={20} color={colors.textSecondary} />
@@ -136,18 +159,21 @@ const ProfileScreen = () => {
                 </View>
             ) : (
                 <View style={[styles.proSection, { marginBottom: 15 }]}>
-                    <View style={[styles.proCard, styles.proCardEnabled]}>
+                    <TouchableOpacity
+                        style={styles.proCard}
+                        onPress={() => navigation.navigate('Subscription')}
+                    >
                         <View style={styles.proInfo}>
                             <View style={styles.proIconCircle}>
-                                <Trophy size={24} color={colors.accent} />
+                                <Zap size={24} color={colors.accent} fill={colors.accent} />
                             </View>
                             <View>
-                                <Text style={styles.proTitle}>NutriTrack PRO</Text>
-                                <Text style={styles.proStatus}>Suscripción Activa ✨</Text>
+                                <Text style={styles.proTitle}>Prueba NutriTrack PRO</Text>
+                                <Text style={styles.proStatus}>Gestionar opciones de pago ✨</Text>
                             </View>
                         </View>
-                        <Award size={24} color={colors.accent} />
-                    </View>
+                        <ChevronRight size={20} color={colors.textSecondary} />
+                    </TouchableOpacity>
                 </View>
             )}
 
@@ -192,6 +218,14 @@ const ProfileScreen = () => {
             {/* Biométricos */}
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Tus Datos Biométricos</Text>
+
+                {isNewUser && (
+                    <View style={styles.welcomeBanner}>
+                        <Text style={styles.welcomeTitle}>¡Bienvenido a NutriTrack! 🎉</Text>
+                        <Text style={styles.welcomeText}>Completa tus datos para personalizar tu experiencia nutricional.</Text>
+                    </View>
+                )}
+
                 <View style={styles.inputCard}>
                     <View style={styles.inputRow}>
                         <Text style={styles.inputLabel}>Género</Text>
@@ -211,21 +245,55 @@ const ProfileScreen = () => {
                         </View>
                     </View>
                     <View style={styles.divider} />
-                    <View style={styles.inputRow}>
+
+                    {/* Edad - estilo moderno */}
+                    <View style={styles.bioFieldRow}>
                         <Text style={styles.inputLabel}>Edad</Text>
-                        <TextInput style={styles.textInput} value={age} onChangeText={setAge} keyboardType="numeric" />
-                    </View>
-                    <View style={styles.divider} />
-                    <View style={styles.inputRow}>
-                        <Text style={styles.inputLabel}>Peso (kg)</Text>
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                            <TextInput style={styles.textInput} value={weight} onChangeText={setWeight} keyboardType="numeric" />
+                        <View style={styles.bioInputWrapper}>
+                            <TextInput
+                                style={styles.bioTextInput}
+                                value={age}
+                                onChangeText={setAge}
+                                keyboardType="numeric"
+                                placeholder="25"
+                                placeholderTextColor={colors.textSecondary}
+                            />
+                            <Text style={styles.bioUnitBadge}>años</Text>
                         </View>
                     </View>
                     <View style={styles.divider} />
-                    <View style={styles.inputRow}>
-                        <Text style={styles.inputLabel}>Altura (cm)</Text>
-                        <TextInput style={styles.textInput} value={height} onChangeText={setHeight} keyboardType="numeric" />
+
+                    {/* Peso - estilo moderno */}
+                    <View style={styles.bioFieldRow}>
+                        <Text style={styles.inputLabel}>Peso</Text>
+                        <View style={styles.bioInputWrapper}>
+                            <TextInput
+                                style={styles.bioTextInput}
+                                value={weight}
+                                onChangeText={setWeight}
+                                keyboardType="numeric"
+                                placeholder="70.0"
+                                placeholderTextColor={colors.textSecondary}
+                            />
+                            <Text style={styles.bioUnitBadge}>kg</Text>
+                        </View>
+                    </View>
+                    <View style={styles.divider} />
+
+                    {/* Altura - estilo moderno */}
+                    <View style={styles.bioFieldRow}>
+                        <Text style={styles.inputLabel}>Altura</Text>
+                        <View style={styles.bioInputWrapper}>
+                            <TextInput
+                                style={styles.bioTextInput}
+                                value={height}
+                                onChangeText={setHeight}
+                                keyboardType="numeric"
+                                placeholder="175"
+                                placeholderTextColor={colors.textSecondary}
+                            />
+                            <Text style={styles.bioUnitBadge}>cm</Text>
+                        </View>
                     </View>
 
                     {/* BMI Widget */}
@@ -238,6 +306,23 @@ const ProfileScreen = () => {
                             <Text style={styles.bmiBadgeText}>{getBMICategory(calculateBMI()).label}</Text>
                         </View>
                     </View>
+
+                    <View style={styles.divider} />
+                    <TouchableOpacity
+                        style={styles.syncRow}
+                        onPress={handleSyncHealthConnect}
+                        disabled={isSyncing}
+                    >
+                        <View style={styles.syncLabelContainer}>
+                            <Activity size={20} color={colors.primary} />
+                            <Text style={styles.syncLabel}>Sincronizar con Health Connect</Text>
+                        </View>
+                        {isSyncing ? (
+                            <RefreshCw size={20} color={colors.primary} />
+                        ) : (
+                            <ChevronRight size={20} color={colors.textSecondary} />
+                        )}
+                    </TouchableOpacity>
                 </View>
             </View>
 
@@ -387,7 +472,7 @@ const ProfileScreen = () => {
 
 
             <View style={{ height: 40 }} />
-        </ScrollView>
+        </ScrollView >
     );
 };
 
@@ -826,7 +911,75 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: colors.textSecondary,
         marginLeft: 2,
-    }
+    },
+    syncRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 4,
+    },
+    syncLabelContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    syncLabel: {
+        color: colors.primary,
+        fontWeight: '700',
+        fontSize: 14,
+    },
+    bioFieldRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 12,
+    },
+    bioInputWrapper: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: colors.background,
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        borderWidth: 1,
+        borderColor: colors.border,
+        minWidth: 120,
+    },
+    bioTextInput: {
+        flex: 1,
+        height: 44,
+        color: colors.text,
+        fontSize: 16,
+        fontWeight: '700',
+        textAlign: 'right',
+        paddingRight: 4,
+    },
+    bioUnitBadge: {
+        color: colors.textSecondary,
+        fontWeight: '700',
+        fontSize: 13,
+        marginLeft: 4,
+    },
+    welcomeBanner: {
+        backgroundColor: 'rgba(16, 185, 129, 0.08)',
+        borderRadius: 16,
+        padding: 16,
+        marginBottom: 16,
+        borderWidth: 1,
+        borderColor: colors.primary,
+        borderStyle: 'dashed',
+    },
+    welcomeTitle: {
+        fontSize: 16,
+        fontWeight: '800',
+        color: colors.primary,
+        marginBottom: 4,
+    },
+    welcomeText: {
+        fontSize: 13,
+        color: colors.textSecondary,
+        lineHeight: 18,
+    },
 });
 
 export default ProfileScreen;

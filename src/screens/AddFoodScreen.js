@@ -15,7 +15,7 @@ import PremiumModal from '../components/PremiumModal';
 const categories = ['Todo', 'Favoritos', 'Recetas', 'Proteínas', 'Carbohidratos', 'Vegetales', 'Frutas'];
 
 const AddFoodScreen = () => {
-    const { addMeal, user, meals, favorites, customRecipes, addCustomRecipe, toggleFavorite } = useApp();
+    const { addMeal, user, meals, favorites, customRecipes, addCustomRecipe, toggleFavorite, globalFoodCatalogue } = useApp();
     const navigation = useNavigation();
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('Todo');
@@ -33,7 +33,7 @@ const AddFoodScreen = () => {
     const [isSearchingIng, setIsSearchingIng] = useState(false);
     const [ingSearchQuery, setIngSearchQuery] = useState('');
 
-    const filteredFood = foodCatalogue.filter(item => {
+    const filteredFood = globalFoodCatalogue.filter(item => {
         const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
         const matchesCategory = selectedCategory === 'Todo' ||
             (selectedCategory === 'Favoritos' ? favorites.find(f => f.id === item.id) :

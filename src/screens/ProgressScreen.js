@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, useWindowDimensions, ScrollView, TextInput, TouchableOpacity, FlatList, Dimensions, Alert } from 'react-native';
-import Svg, { Circle, G, Rect, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, G, Rect, Text as SvgText, Line, Polyline, Defs, LinearGradient, Stop, Polygon } from 'react-native-svg';
 import { TrendingUp, Award, Calendar, Search, ChevronDown, ChevronUp, Scale, Save, Plus } from 'lucide-react-native';
 import { colors } from '../theme/colors';
 import { useApp } from '../context/AppContext';
@@ -413,22 +413,78 @@ const ProgressScreen = () => {
                     </TouchableOpacity>
                 </View>
 
-                {weightHistory.length > 0 && (
-                    <View style={styles.miniHistory}>
-                        <Text style={styles.miniHistoryTitle}>Últimos Registros</Text>
-                        <View style={styles.historyList}>
-                            {weightHistory.slice(0, 3).map((item, idx) => (
-                                <View key={idx} style={styles.miniHistoryItem}>
-                                    <View style={styles.historyDot} />
-                                    <Text style={styles.historyDateText}>
-                                        {new Date(item.date).toLocaleDateString()}
-                                    </Text>
-                                    <Text style={styles.historyWeightText}>{item.weight} kg</Text>
-                                </View>
-                            ))}
+                {weightHistory.length > 0 && (() => {
+                    const sorted = [...weightHistory].sort((a, b) => a.date > b.date ? 1 : -1).slice(-10);
+                    const chartW = width - 100;
+                    const chartH = 160;
+                    const padL = 45;
+                    const padR = 15;
+                    const padT = 15;
+                    const padB = 35;
+                    const innerW = chartW - padL - padR;
+                    const innerH = chartH - padT - padB;
+                    const weights = sorted.map(s => s.weight);
+                    const minW = Math.min(...weights) - 1;
+                    const maxW = Math.max(...weights) + 1;
+                    const range = maxW - minW || 1;
+
+                    const points = sorted.map((item, i) => ({
+                        x: padL + (sorted.length > 1 ? (i / (sorted.length - 1)) * innerW : innerW / 2),
+                        y: padT + innerH - ((item.weight - minW) / range) * innerH,
+                        date: item.date,
+                        weight: item.weight,
+                    }));
+                    const polylinePoints = points.map(p => `${p.x},${p.y}`).join(' ');
+                    const polygonPoints = `${points[0].x},${padT + innerH} ${polylinePoints} ${points[points.length - 1].x},${padT + innerH}`;
+
+                    return (
+                        <View style={styles.miniHistory}>
+                            <Text style={styles.miniHistoryTitle}>Evolución de Peso</Text>
+                            <Svg width={chartW} height={chartH}>
+                                <Defs>
+                                    <LinearGradient id="weightFill" x1="0" y1="0" x2="0" y2="1">
+                                        <Stop offset="0" stopColor={colors.primary} stopOpacity="0.3" />
+                                        <Stop offset="1" stopColor={colors.primary} stopOpacity="0.02" />
+                                    </LinearGradient>
+                                </Defs>
+                                {/* Grid lines */}
+                                {[0, 0.25, 0.5, 0.75, 1].map((pct, i) => {
+                                    const yy = padT + innerH - pct * innerH;
+                                    const val = (minW + pct * range).toFixed(1);
+                                    return (
+                                        <G key={i}>
+                                            <Line x1={padL} y1={yy} x2={padL + innerW} y2={yy} stroke={colors.border} strokeWidth="1" strokeDasharray="4,4" />
+                                            <SvgText x={padL - 8} y={yy + 4} fontSize="10" fill={colors.textSecondary} textAnchor="end">{val}</SvgText>
+                                        </G>
+                                    );
+                                })}
+                                {/* Area fill */}
+                                <Polygon points={polygonPoints} fill="url(#weightFill)" />
+                                {/* Line */}
+                                <Polyline points={polylinePoints} fill="none" stroke={colors.primary} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                                {/* Points + date labels */}
+                                {points.map((p, i) => {
+                                    const dateLabel = p.date.slice(5).replace('-', '/');
+                                    return (
+                                        <G key={i}>
+                                            <Circle cx={p.x} cy={p.y} r="4" fill={colors.primary} stroke={colors.card} strokeWidth="2" />
+                                            <SvgText x={p.x} y={chartH - 5} fontSize="8" fill={colors.textSecondary} textAnchor="middle">{dateLabel}</SvgText>
+                                        </G>
+                                    );
+                                })}
+                            </Svg>
+                            {/* Summary row */}
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }}>
+                                <Text style={{ fontSize: 12, color: colors.textSecondary }}>Actual: <Text style={{ fontWeight: '700', color: colors.primary }}>{sorted[sorted.length - 1].weight} kg</Text></Text>
+                                {sorted.length > 1 && (() => {
+                                    const diff = (sorted[sorted.length - 1].weight - sorted[0].weight).toFixed(1);
+                                    const diffColor = diff > 0 ? colors.danger : colors.primary;
+                                    return <Text style={{ fontSize: 12, color: colors.textSecondary }}>Cambio: <Text style={{ fontWeight: '700', color: diffColor }}>{diff > 0 ? '+' : ''}{diff} kg</Text></Text>;
+                                })()}
+                            </View>
                         </View>
-                    </View>
-                )}
+                    );
+                })()}
             </View>
 
             {/* Collapsible Table */}

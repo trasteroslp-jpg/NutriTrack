@@ -24,23 +24,27 @@ import {
     serverTimestamp,
 } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
+import { foodCatalogue } from '../data/mockData';
+import { HealthService } from '../services/healthService';
 
 const AppContext = createContext();
 
 const DEFAULT_USER_PROFILE = {
     name: '',
     email: '',
-    isPro: false, // Nueva bandera para funcionalidades Premium
+    isPro: false,
+    gender: 'male',
+    activityLevel: 1.2,
     age: 25,
     weight: 70,
     height: 170,
     goal: 'maintain',
-    goalCalories: 2000,
-    macros: { protein: 30, carbs: 40, fat: 30 },
+    goalCalories: 2040, // Calculado para 25 años, 70kg, 170cm, male, sedentary
+    macros: { protein: 25, carbs: 45, fat: 30 }, // Coincide con el objetivo 'maintain' de ProfileScreen
     dislikedFoods: [],
-    waterGoal: 2000, // ml
-    weightHistory: [], // { date, weight }
-    favorites: [], // array de objetos de comida
+    waterGoal: 2000,
+    weightHistory: [],
+    favorites: [],
     customRecipes: [],
 };
 
@@ -68,6 +72,8 @@ export const AppProvider = ({ children }) => {
     const [weightHistory, setWeightHistory] = useState([]);
     const [favorites, setFavorites] = useState([]);
     const [customRecipes, setCustomRecipes] = useState([]);
+    const [globalFoodCatalogue, setGlobalFoodCatalogue] = useState(foodCatalogue);
+    const [isNewUser, setIsNewUser] = useState(false);
 
     // ── Escuchar cambios de sesión de Firebase ──
     useEffect(() => {
@@ -128,6 +134,19 @@ export const AppProvider = ({ children }) => {
                 }
             }
 
+            try {
+                // Cargar Catálogo Global extendido (opcional: desde una colección compartida)
+                const globalRef = collection(db, 'global_foods');
+                const globalSnap = await getDocs(globalRef);
+                if (!globalSnap.empty) {
+                    const cloudFoods = globalSnap.docs.map(d => ({ ...d.data(), id: d.id }));
+                    setGlobalFoodCatalogue([...foodCatalogue, ...cloudFoods]);
+                }
+            } catch (globalError) {
+                console.warn('No se pudo cargar el catálogo global (posible falta de permisos):', globalError.message);
+                // El catálogo se queda con los datos por defecto (foodCatalogue)
+            }
+
         } catch (e) {
             console.error('Error loading user data:', e);
         }
@@ -179,6 +198,7 @@ export const AppProvider = ({ children }) => {
             };
             await setDoc(doc(db, 'users', cred.user.uid), newProfile);
             setUser(newProfile);
+            setIsNewUser(true);
             return { success: true };
         } catch (e) {
             const msg = getAuthErrorMessage(e.code);
@@ -219,6 +239,13 @@ export const AppProvider = ({ children }) => {
     const logout = async () => {
         try {
             await signOut(auth);
+            // Limpiar todos los datos del usuario para evitar fugas entre cuentas
+            setWeightHistory([]);
+            setFavorites([]);
+            setCustomRecipes([]);
+            setWaterIntake(0);
+            setStreak(0);
+            setIsNewUser(false);
         } catch (e) {
             console.error('Error logging out:', e);
         }
@@ -352,6 +379,8 @@ export const AppProvider = ({ children }) => {
             // User
             user,
             updateUser,
+            isNewUser,
+            setIsNewUser,
             // Meals
             meals,
             addMeal,
@@ -423,6 +452,48 @@ export const AppProvider = ({ children }) => {
                     }, { merge: true });
                 }
             },
+            // Health Connect Sync
+            syncWeightFromHealth: async () => {
+                const isAvailable = await HealthService.checkAvailability();
+                if (!isAvailable) return { success: false, error: 'Health Connect no disponible' };
+
+                const hasPermissions = await HealthService.requestWeightPermissions();
+                if (!hasPermissions) return { success: false, error: 'Permisos denegados' };
+
+                const weightData = await HealthService.getLatestWeight();
+                if (weightData) {
+                    // Actualizar en la app y base de datos
+                    await logWeight(weightData.weight);
+                    return { success: true, weight: weightData.weight };
+                }
+                return { success: false, error: 'No se encontraron datos de peso recientes' };
+            },
+            // Catálogo Global
+            globalFoodCatalogue,
+            addToGlobalCatalogue: async (food) => {
+                // Evitar duplicados simples por nombre
+                if (globalFoodCatalogue.find(f => f.name.toLowerCase() === food.name.toLowerCase())) return;
+
+                const newFood = {
+                    ...food,
+                    id: `gen_${Date.now()}`,
+                    isGenerated: true,
+                    contributedBy: firebaseUser?.uid || 'anonymous'
+                };
+
+                // Actualizar estado local
+                setGlobalFoodCatalogue(prev => [...prev, newFood]);
+
+                // Guardar en Firestore para que otros se beneficien (Colección Compartida)
+                try {
+                    await addDoc(collection(db, 'global_foods'), {
+                        ...newFood,
+                        createdAt: serverTimestamp()
+                    });
+                } catch (e) {
+                    console.error("Error contributing to global food database:", e);
+                }
+            }
         }}>
             {children}
         </AppContext.Provider>

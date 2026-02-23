@@ -1,3 +1,5 @@
+import { importedFoods } from './importedFoods';
+
 export const mockMeals = [
   {
     id: '1',
@@ -146,6 +148,7 @@ export const foodCatalogue = [
   { id: '513', name: 'Semillas de Chía', calories: 486, protein: 17, carbs: 42, fat: 31, category: 'Grasas' },
   { id: '514', name: 'Pipas de Calabaza', calories: 559, protein: 30, carbs: 11, fat: 49, category: 'Grasas' },
   { id: '515', name: 'Hummus Clásico', calories: 166, protein: 8, carbs: 14, fat: 9.6, category: 'Grasas' },
+  ...importedFoods
 ];
 
 export const userProfile = {

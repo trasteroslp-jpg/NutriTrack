@@ -3,7 +3,7 @@
     "name": "NutriTrack",
     "slug": "nutri-track",
     "scheme": "nutritrack",
-    "version": "1.1.0",
+    "version": "1.5.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -29,23 +29,45 @@
       },
       "edgeToEdgeEnabled": true,
       "permissions": [
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "android.permission.health.READ_WEIGHT",
+        "android.permission.health.WRITE_WEIGHT"
       ]
     },
     "plugins": [
       "expo-web-browser",
-      "@stripe/stripe-react-native"
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.david.nutritrack",
+          "enableGooglePay": true
+        }
+      ],
+      [
+        "react-native-health-connect",
+        {
+          "rationales": "NutriTrack necesita sincronizar tu peso."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "minSdkVersion": 26,
+            "kotlinVersion": "2.0.21",
+            "extraMavenRepos": [
+              "https://maven.google.com"
+            ]
+          }
+        }
+      ]
     ],
     "extra": {
       "eas": {
         "projectId": "db844fef-e8c3-4bdb-b7fe-de25ececa9cf"
       }
-    },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
-    "updates": {
-      "url": "https://u.expo.dev/db844fef-e8c3-4bdb-b7fe-de25ececa9cf"
     }
   }
 }

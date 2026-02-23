@@ -18,7 +18,7 @@ const VoiceScanner = ({ visible, onClose }) => {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analysisResult, setAnalysisResult] = useState(null);
     const [permissionResponse, requestPermission] = Audio.usePermissions();
-    const { addMeal } = useApp();
+    const { addMeal, addToGlobalCatalogue } = useApp();
 
     // Limpieza al desmontar
     useEffect(() => {
@@ -101,7 +101,7 @@ const VoiceScanner = ({ visible, onClose }) => {
                 body: JSON.stringify({
                     contents: [{
                         parts: [
-                            { text: "Analiza este audio donde el usuario describe lo que ha comido. Identifica los alimentos y estima sus gramos, calorías y macronutrientes (proteínas, carbohidratos, grasas). Responde SOLO en formato JSON plano como una lista de objetos: [{\"name\": \"...\", \"weight\": 100, \"calories\": 200, \"protein\": 10, \"carbs\": 20, \"fat\": 5}]" },
+                            { text: "Analiza este audio donde el usuario describe lo que ha comido. Identifica los alimentos y estima sus gramos, calorías y macronutrientes (proteínas, carbohidratos, grasas). MUY IMPORTANTE: Responde con los nombres de los alimentos en ESPAÑOL. Responde SOLO en formato JSON plano como una lista de objetos: [{\"name\": \"...\", \"weight\": 100, \"calories\": 200, \"protein\": 10, \"carbs\": 20, \"fat\": 5}]" },
                             { inline_data: { mime_type: "audio/mp4", data: base64Audio } }
                         ]
                     }]
@@ -146,6 +146,17 @@ const VoiceScanner = ({ visible, onClose }) => {
                 carbs: item.carbs,
                 fat: item.fat,
                 grams: item.weight
+            });
+
+            // Alimentar la base de datos global (normalizar por 100g)
+            const ratio = 100 / item.weight;
+            addToGlobalCatalogue({
+                name: item.name,
+                calories: Math.round(item.calories * ratio),
+                protein: Math.round(item.protein * ratio),
+                carbs: Math.round(item.carbs * ratio),
+                fat: Math.round(item.fat * ratio),
+                category: 'Voz (AI)'
             });
         });
         Alert.alert('¡Éxito!', 'Alimentos añadidos correctamente.');

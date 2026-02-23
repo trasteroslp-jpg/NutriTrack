@@ -20,10 +20,13 @@ const DashboardScreen = () => {
         );
     }
 
-    const consumedCalories = meals.reduce((sum, meal) => sum + meal.calories, 0);
-    const totalProtein = meals.reduce((sum, meal) => sum + (meal.protein || 0), 0);
-    const totalCarbs = meals.reduce((sum, meal) => sum + (meal.carbs || 0), 0);
-    const totalFat = meals.reduce((sum, meal) => sum + (meal.fat || 0), 0);
+    const today = new Date().toISOString().split('T')[0];
+    const todayMeals = meals.filter(meal => meal.date === today);
+
+    const consumedCalories = todayMeals.reduce((sum, meal) => sum + meal.calories, 0);
+    const totalProtein = todayMeals.reduce((sum, meal) => sum + (meal.protein || 0), 0);
+    const totalCarbs = todayMeals.reduce((sum, meal) => sum + (meal.carbs || 0), 0);
+    const totalFat = todayMeals.reduce((sum, meal) => sum + (meal.fat || 0), 0);
 
     const progress = Math.min(consumedCalories / user.goalCalories, 1);
 
