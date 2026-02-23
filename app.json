@@ -23,15 +23,14 @@
     },
     "android": {
       "package": "com.david.nutritrack",
+      "versionCode": 6,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
       "permissions": [
-        "android.permission.CAMERA",
-        "android.permission.health.READ_WEIGHT",
-        "android.permission.health.WRITE_WEIGHT"
+        "android.permission.CAMERA"
       ]
     },
     "plugins": [
@@ -46,7 +45,11 @@
       [
         "react-native-health-connect",
         {
-          "rationales": "NutriTrack necesita sincronizar tu peso."
+          "rationales": "NutriTrack necesita sincronizar tu peso para llevar un seguimiento de tu progreso.",
+          "permissions": [
+            "READ_WEIGHT",
+            "WRITE_WEIGHT"
+          ]
         }
       ],
       [
