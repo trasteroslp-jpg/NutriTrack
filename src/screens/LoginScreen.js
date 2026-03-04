@@ -3,7 +3,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
     View, Text, StyleSheet, TouchableOpacity, Image,
     StatusBar, TextInput, KeyboardAvoidingView,
-    Platform, ScrollView, ActivityIndicator, Alert
+    Platform, ScrollView, ActivityIndicator, Alert, Keyboard, TouchableWithoutFeedback
 } from 'react-native';
 import { colors } from '../theme/colors';
 import { useApp } from '../context/AppContext';
@@ -142,6 +142,8 @@ const LoginScreen = () => {
                                     value={name}
                                     onChangeText={setName}
                                     autoCapitalize="words"
+                                    returnKeyType="done"
+                                    onSubmitEditing={Keyboard.dismiss}
                                 />
                             </View>
                         )}
@@ -158,6 +160,8 @@ const LoginScreen = () => {
                                 keyboardType="email-address"
                                 autoCapitalize="none"
                                 autoCorrect={false}
+                                returnKeyType="done"
+                                onSubmitEditing={Keyboard.dismiss}
                             />
                         </View>
 
@@ -172,6 +176,8 @@ const LoginScreen = () => {
                                 onChangeText={setPassword}
                                 secureTextEntry={!showPassword}
                                 autoCapitalize="none"
+                                returnKeyType="done"
+                                onSubmitEditing={Keyboard.dismiss}
                             />
                             <TouchableOpacity onPress={() => setShowPassword(v => !v)} style={styles.eyeBtn}>
                                 {showPassword
@@ -193,6 +199,8 @@ const LoginScreen = () => {
                                     onChangeText={setConfirmPassword}
                                     secureTextEntry={!showPassword}
                                     autoCapitalize="none"
+                                    returnKeyType="done"
+                                    onSubmitEditing={Keyboard.dismiss}
                                 />
                             </View>
                         )}

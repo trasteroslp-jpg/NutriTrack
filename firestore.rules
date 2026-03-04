@@ -1,22 +1,39 @@
-// Reglas de seguridad para Firestore
-// Pega esto en Firebase Console > Firestore > Reglas
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Reglas para usuarios y sus datos privados
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-      
-      // Subcolección de comidas
-      match /meals/{mealId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
-      }
+    
+    // Funciones de conveniencia
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email == 'daforg@hotmail.com';
+    }
 
-      // Otras subcolecciones (extra/health, etc.)
+    // 1. Ranking Público (SOLO nombre, xp, foto)
+    // Cualquier usuario autenticado puede leer, pero solo el dueño puede escribir su entrada
+    match /leaderboard_profiles/{userId} {
+      allow read: if request.auth != null;
+      allow write: if isOwner(userId) || isAdmin();
+    }
+
+    // 2. Datos Privados (email, peso, edad, historial, comidas...)
+    // BLINDADO: Solo el dueño puede acceder. Admin puede leer (para Back Office)
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isOwner(userId) || isAdmin();
+
+      // Subcolecciones (comidas, salud, logs de IA, etc.)
       match /{allPaths=**} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if isOwner(userId) || isAdmin();
       }
+    }
+
+    // 3. Catálogo Global de Alimentos
+    match /global_foods/{foodId} {
+      allow read, create: if request.auth != null;
+      allow update, delete: if isAdmin();
     }
   }
 }

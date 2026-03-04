@@ -39,34 +39,35 @@ const DietsScreen = () => {
 
             const library = {
                 Desayuno: [
-                    { title: 'Tostada con Aguacate y Huevo', ing: [{ n: 'Pan Integral', b: 60 }, { n: 'Aguacate', b: 50 }, { n: 'Huevo', b: 60 }], steps: ['Tostar el pan.', 'Aplastar el aguacate.', 'Poner el huevo encima.'] },
-                    { title: 'Bol de Avena y Frutos Rojos', ing: [{ n: 'Avena', b: 50 }, { n: 'Leche Desnatada', b: 200 }, { n: 'Arándanos', b: 40 }], steps: ['Cocer la avena con leche.', 'Añadir frutos rojos.'] },
-                    { title: 'Tortitas de Plátano y Avena', ing: [{ n: 'Plátano', b: 100 }, { n: 'Huevo', b: 60 }, { n: 'Avena', b: 30 }], steps: ['Chafar el plátano.', 'Mezclar con huevo y avena.', 'Hacer a la plancha.'] },
-                    { title: 'Yogur con Granola y Kiwi', ing: [{ n: 'Yogur', b: 125 }, { n: 'Granola', b: 30 }, { n: 'Kiwi', b: 80 }], steps: ['Mezclar en un bol.'] }
+                    { title: 'Tostada con Aguacate y Huevo', ing: [{ n: 'Pan Integral', b: 60 }, { n: 'Aguacate', b: 50 }, { n: 'Huevo', b: 60 }], steps: ['Tostar el pan.', 'Aplastar el aguacate.', 'Poner el huevo encima.'], tags: ['vegetarian'] },
+                    { title: 'Bol de Avena y Frutos Rojos', ing: [{ n: 'Avena', b: 50 }, { n: 'Bebida de Almendras', b: 200 }, { n: 'Arándanos', b: 40 }], steps: ['Cocer la avena con leche.', 'Añadir frutos rojos.'], tags: ['vegan', 'vegetarian', 'lactose-free'] },
+                    { title: 'Tortitas de Plátano y Avena', ing: [{ n: 'Plátano', b: 100 }, { n: 'Huevo', b: 60 }, { n: 'Avena', b: 30 }], steps: ['Chafar el plátano.', 'Mezclar con huevo y avena.', 'Hacer a la plancha.'], tags: ['vegetarian'] },
+                    { title: 'Yogur de Coco con Granola', ing: [{ n: 'Yogur Coco', b: 125 }, { n: 'Granola sin gluten', b: 30 }, { n: 'Kiwi', b: 80 }], steps: ['Mezclar en un bol.'], tags: ['vegan', 'vegetarian', 'lactose-free', 'gluten-free'] },
+                    { title: 'Revuelto de Tofu con Cúrcuma', ing: [{ n: 'Tofu firme', b: 150 }, { n: 'Espinacas', b: 50 }, { n: 'Pan sin gluten', b: 40 }], steps: ['Desmigar el tofu.', 'Saltear con cúrcuma y espinacas.'], tags: ['vegan', 'vegetarian', 'lactose-free', 'gluten-free'] }
                 ],
                 Almuerzo: [
-                    { title: 'Pollo Asado con Verduras', ing: [{ n: 'Pechuga de Pollo', b: 150 }, { n: 'Brócoli', b: 100 }, { n: 'Patata', b: 120 }], steps: ['Sazonar el pollo.', 'Hornear 20 min a 200°C.', 'Hacer verduras al vapor.'] },
-                    { title: 'Salmón a la Plancha', ing: [{ n: 'Salmón', b: 150 }, { n: 'Espárragos', b: 100 }, { n: 'Arroz Integral', b: 70 }], steps: ['Hacer el salmón a la plancha.', 'Cocer el arroz.', 'Saltear espárragos.'] },
-                    { title: 'Lentejas con Verduras', ing: [{ n: 'Lentejas cocidas', b: 200 }, { n: 'Espinacas', b: 50 }, { n: 'Zanahoria', b: 50 }], steps: ['Saltear verduras.', 'Añadir lentejas y calentar.'] },
-                    { title: 'Pavo con Quinoa y Calabaza', ing: [{ n: 'Solomillo de Pavo', b: 150 }, { n: 'Quinoa', b: 60 }, { n: 'Calabaza', b: 100 }], steps: ['Hacer pavo a la plancha.', 'Cocer quinoa.', 'Asar calabaza.'] }
+                    { title: 'Pollo Asado con Verduras', ing: [{ n: 'Pechuga de Pollo', b: 150 }, { n: 'Brócoli', b: 100 }, { n: 'Patata', b: 120 }], steps: ['Sazonar el pollo.', 'Hornear 20 min a 200°C.', 'Hacer verduras al vapor.'], tags: ['omnivore', 'gluten-free', 'lactose-free'] },
+                    { title: 'Salmón a la Plancha', ing: [{ n: 'Salmón', b: 150 }, { n: 'Espárragos', b: 100 }, { n: 'Arroz Integral', b: 70 }], steps: ['Hacer el salmón a la plancha.', 'Cocer el arroz.', 'Saltear espárragos.'], tags: ['omnivore', 'gluten-free', 'lactose-free'] },
+                    { title: 'Lentejas con Verduras y Arroz', ing: [{ n: 'Lentejas cocidas', b: 200 }, { n: 'Espinacas', b: 50 }, { n: 'Arroz', b: 30 }], steps: ['Saltear verduras.', 'Añadir lentejas y calentar.'], tags: ['vegan', 'vegetarian', 'gluten-free', 'lactose-free'] },
+                    { title: 'Pavo con Quinoa y Calabaza', ing: [{ n: 'Solomillo de Pavo', b: 150 }, { n: 'Quinoa', b: 60 }, { n: 'Calabaza', b: 100 }], steps: ['Hacer pavo a la plancha.', 'Cocer quinoa.', 'Asar calabaza.'], tags: ['omnivore', 'gluten-free', 'lactose-free'] },
+                    { title: 'Curry de Garbanzos y Coco', ing: [{ n: 'Garbanzos', b: 200 }, { n: 'Leche de Coco', b: 100 }, { n: 'Espinacas', b: 80 }], steps: ['Cocinar garbanzos con coco y especias.'], tags: ['vegan', 'vegetarian', 'gluten-free', 'lactose-free'] }
                 ],
                 Merienda: [
-                    { title: 'Yogur Griego con Nueces', ing: [{ n: 'Yogur Griego 0%', b: 125 }, { n: 'Nueces', b: 20 }], steps: ['Mezclar en un bol y servir.'] },
-                    { title: 'Batido de Proteína y Plátano', ing: [{ n: 'Proteína whey', b: 30 }, { n: 'Leche', b: 200 }, { n: 'Plátano', b: 100 }], steps: ['Batir todo junto.', 'Servir frío.'] },
-                    { title: 'Manzana con Crema de Cacahuete', ing: [{ n: 'Manzana', b: 150 }, { n: 'Crema Cacahuete', b: 15 }], steps: ['Cortar manzana y untar.'] },
-                    { title: 'Queso Fresco con Pavo', ing: [{ n: 'Queso fresco', b: 80 }, { n: 'Pechuga de pavo', b: 60 }], steps: ['Servir frío.'] }
+                    { title: 'Proteína Vegetal con Fruta', ing: [{ n: 'Proteína de Guisante', b: 30 }, { n: 'Agua/Bebida soja', b: 200 }, { n: 'Nueces', b: 20 }], steps: ['Mezclar en un shaker.'], tags: ['vegan', 'vegetarian', 'lactose-free', 'gluten-free'] },
+                    { title: 'Hummus con Bastones de Pepino', ing: [{ n: 'Hummus', b: 80 }, { n: 'Pepino', b: 150 }], steps: ['Cortar y mojar.'], tags: ['vegan', 'vegetarian', 'gluten-free', 'lactose-free'] },
+                    { title: 'Manzana con Crema de Almendras', ing: [{ n: 'Manzana', b: 150 }, { n: 'Crema Almendras', b: 15 }], steps: ['Cortar manzana y untar.'], tags: ['vegan', 'vegetarian', 'gluten-free', 'lactose-free'] },
+                    { title: 'Tortitas de Arroz con Aguacate', ing: [{ n: 'Tortita arroz', b: 20 }, { n: 'Aguacate', b: 50 }], steps: ['Montar y servir.'], tags: ['vegan', 'vegetarian', 'gluten-free', 'lactose-free'] }
                 ],
                 Cena: [
-                    { title: 'Tortilla Francesa con Pavo', ing: [{ n: 'Huevo', b: 120 }, { n: 'Pavo lonchas', b: 50 }, { n: 'Ensalada mixta', b: 100 }], steps: ['Batir huevos.', 'Cocinar en sartén con el pavo.', 'Acompañar con ensalada.'] },
-                    { title: 'Merluza al Horno', ing: [{ n: 'Merluza', b: 180 }, { n: 'Calabacín', b: 150 }], steps: ['Poner merluza y calabacín en bandeja.', 'Hornear 15 min.', 'Aliñar con aceite y limón.'] },
-                    { title: 'Ensalada de Atún y Huevo', ing: [{ n: 'Atún al natural', b: 60 }, { n: 'Huevo cocido', b: 60 }, { n: 'Canónigos', b: 50 }], steps: ['Mezclar todos los ingredientes.'] },
-                    { title: 'Crema de Calabacín y Pollo', ing: [{ n: 'Calabacín', b: 200 }, { n: 'Pechuga troceada', b: 100 }], steps: ['Cocer y batir calabacín.', 'Saltear pollo y añadir por encima.'] }
+                    { title: 'Ensalada de Tempeh y Canónigos', ing: [{ n: 'Tempeh a la plancha', b: 120 }, { n: 'Nueces', b: 15 }, { n: 'Canónigos', b: 100 }], steps: ['Hacer el tempeh.', 'Mezclar con ensalada.'], tags: ['vegan', 'vegetarian', 'gluten-free', 'lactose-free'] },
+                    { title: 'Merluza al Horno con Patatas', ing: [{ n: 'Merluza', b: 180 }, { n: 'Calabacín', b: 150 }], steps: ['Hornear y servir.'], tags: ['omnivore', 'gluten-free', 'lactose-free'] },
+                    { title: 'Revuelto de Claras y Champiñones', ing: [{ n: 'Claras de huevo', b: 200 }, { n: 'Champiñones', b: 100 }], steps: ['Saltear todo.'], tags: ['vegetarian', 'gluten-free', 'lactose-free'] },
+                    { title: 'Crema de Calabaza y Semillas', ing: [{ n: 'Calabaza', b: 250 }, { n: 'Semillas de Girasol', b: 15 }], steps: ['Triturar y añadir semillas.'], tags: ['vegan', 'vegetarian', 'gluten-free', 'lactose-free'] }
                 ],
                 Snack: [
-                    { title: 'Fruta de Temporada', ing: [{ n: 'Pieza de fruta', b: 100 }], steps: ['Lavar y comer.'] },
-                    { title: 'Tortitas de Arroz', ing: [{ n: 'Tortita de arroz', b: 20 }, { n: 'Pechuga de pavo', b: 40 }], steps: ['Poner el pavo sobre las tortitas.'] },
-                    { title: 'Zanahorias con Hummus', ing: [{ n: 'Zanahoria', b: 100 }, { n: 'Hummus', b: 30 }], steps: ['Cortar en bastones.'] },
-                    { title: 'Almendras Naturales', ing: [{ n: 'Almendras', b: 20 }], steps: ['Comer crudas.'] }
+                    { title: 'Fruta de Temporada', ing: [{ n: 'Pieza de fruta', b: 100 }], steps: ['Lavar y comer.'], tags: ['vegan', 'vegetarian', 'gluten-free', 'lactose-free'] },
+                    { title: 'Almendras Naturales', ing: [{ n: 'Almendras', b: 20 }], steps: ['Comer crudas.'], tags: ['vegan', 'vegetarian', 'gluten-free', 'lactose-free'] },
+                    { title: 'Edamames al vapor', ing: [{ n: 'Edamames', b: 100 }], steps: ['Cocer 5 min.'], tags: ['vegan', 'vegetarian', 'gluten-free', 'lactose-free'] }
                 ]
             };
 
@@ -75,8 +76,30 @@ const DietsScreen = () => {
                 const types = ['Desayuno', 'Almuerzo', 'Merienda', 'Cena', 'Snack'];
 
                 types.forEach(type => {
-                    const options = library[type];
-                    const template = options[i % options.length];
+                    let options = library[type];
+
+                    // SMART FILTERING
+                    const diet = user.dietType || 'omnivore';
+                    const restr = user.restrictions || [];
+
+                    // Filter by DIET TYPE
+                    if (diet === 'vegan') {
+                        options = options.filter(o => o.tags?.includes('vegan'));
+                    } else if (diet === 'vegetarian') {
+                        options = options.filter(o => o.tags?.includes('vegetarian'));
+                    }
+
+                    // Filter by RESTRICTIONS (Celiac, Lactose)
+                    if (restr.includes('celiac')) {
+                        options = options.filter(o => o.tags?.includes('gluten-free'));
+                    }
+                    if (restr.includes('lactose')) {
+                        options = options.filter(o => o.tags?.includes('lactose-free'));
+                    }
+
+                    // Fallback si no hay opciones para esa dieta extrema
+                    const template = options.length > 0 ? options[i % options.length] : library[type][0];
+
                     const mealCals = Math.round(totalGoal * dist[type]);
                     const macros = getMacrosFromCals(mealCals, ratios);
                     const scale = mealCals / 400; // Base para escalado
@@ -89,10 +112,26 @@ const DietsScreen = () => {
                         p: macros.p,
                         c: macros.c,
                         f: macros.f,
-                        ingredients: template.ing.map(item => ({
-                            n: item.n,
-                            q: Math.round(item.b * scale) + (item.n.includes('Pieza') || item.n.includes('Huevo') ? 'u' : 'g')
-                        })),
+                        isAdapted: options.length > 0,
+                        ingredients: template.ing.map(item => {
+                            const name = item.n.toLowerCase();
+                            const isLiquid = ['leche', 'bebida', 'zumo', 'agua', 'caldo', 'aceite', 'batido', 'kefir', 'clara'].some(l => name.includes(l)) && !name.includes('aguacate');
+
+                            // Caso especial para Huevos: unidades en lugar de gramos
+                            if (name.includes('huevo') && !name.includes('clara')) {
+                                const units = Math.max(1, Math.round((item.b * scale) / 60));
+                                return {
+                                    n: item.n,
+                                    q: `${units} ${units === 1 ? 'unidad' : 'unidades'}`
+                                };
+                            }
+
+                            const unit = (item.n.includes('Pieza') && Math.round(item.b * scale) < 10) ? 'u' : (isLiquid ? 'ml' : 'g');
+                            return {
+                                n: item.n,
+                                q: Math.round(item.b * scale) + unit
+                            };
+                        }),
                         steps: template.steps
                     });
                 });
@@ -112,7 +151,9 @@ const DietsScreen = () => {
             protein: meal.p,
             carbs: meal.c,
             fat: meal.f,
-            type: meal.time
+            type: meal.time,
+            grams: 1,
+            isRecipe: true,
         };
         addMeal(newMeal);
         Alert.alert('¡Buen provecho!', `Has registrado "${meal.title}" en tu diario de hoy.`);
@@ -253,8 +294,15 @@ const DietsScreen = () => {
                         {weeklyDiet[activeDay]?.map((meal, index) => (
                             <View key={index} style={styles.mealCard}>
                                 <View style={styles.mealHeader}>
-                                    <View style={styles.timeTag}>
-                                        <Text style={styles.timeTagText}>{meal.time}</Text>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                        <View style={styles.timeTag}>
+                                            <Text style={styles.timeTagText}>{meal.time}</Text>
+                                        </View>
+                                        {meal.isAdapted && (
+                                            <View style={[styles.timeTag, { backgroundColor: colors.primaryLight }]}>
+                                                <Text style={[styles.timeTagText, { color: colors.primary }]}>🌱 Dieta Adaptada</Text>
+                                            </View>
+                                        )}
                                     </View>
                                     <View style={styles.mealMacros}>
                                         <MacroSmall label="P" val={meal.p} color={colors.macronutrients.protein} />
@@ -325,7 +373,7 @@ const DietsScreen = () => {
                         <UtensilsCrossed size={32} color={colors.primary} />
                         <Text style={styles.settingsTitle}>Ajusta tus gustos</Text>
                         <Text style={styles.settingsDesc}>
-                            Marca o escribe los alimentos que NO quieres ver en tus dietas recomendadas. Nuestra IA los excluirá.
+                            Marca o escribe los alimentos que NO quieres ver en tus dietas recomendadas. NutriTrack los excluirá.
                         </Text>
                     </View>
 

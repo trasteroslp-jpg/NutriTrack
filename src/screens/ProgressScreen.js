@@ -1,7 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, useWindowDimensions, ScrollView, TextInput, TouchableOpacity, FlatList, Dimensions, Alert } from 'react-native';
+import { View, Text, StyleSheet, useWindowDimensions, ScrollView, TextInput, TouchableOpacity, FlatList, Dimensions, Alert, Modal } from 'react-native';
 import Svg, { Circle, G, Rect, Text as SvgText, Line, Polyline, Defs, LinearGradient, Stop, Polygon } from 'react-native-svg';
-import { TrendingUp, Award, Calendar, Search, ChevronDown, ChevronUp, Scale, Save, Plus } from 'lucide-react-native';
+import { TrendingUp, Award, Calendar, Search, Clock, ChevronDown, ChevronUp, Scale, Save, Plus, X, History } from 'lucide-react-native';
+import { Calendar as RNCalendar, LocaleConfig } from 'react-native-calendars';
+
+// Configurar locale español
+LocaleConfig.locales['es'] = {
+    monthNames: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'],
+    monthNamesShort: ['Ene.', 'Feb.', 'Mar', 'Abr', 'May', 'Jun', 'Jul.', 'Ago', 'Sep.', 'Oct.', 'Nov.', 'Dic.'],
+    dayNames: ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'],
+    dayNamesShort: ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'],
+    today: 'Hoy'
+};
+LocaleConfig.defaultLocale = 'es';
 import { colors } from '../theme/colors';
 import { useApp } from '../context/AppContext';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -119,7 +130,7 @@ const CalorieBarChart = ({ data, goalCalories, width }) => {
 };
 
 const ProgressScreen = () => {
-    const { getStatsForRange, user, weightHistory, logWeight } = useApp();
+    const { getStatsForRange, user, meals, weightHistory, logWeight } = useApp();
     const { width } = useWindowDimensions();
     const [weightInput, setWeightInput] = useState(user.weight?.toString() || '');
 
@@ -139,17 +150,27 @@ const ProgressScreen = () => {
     const [filteredStats, setFilteredStats] = useState([]);
     const [isTableExpanded, setIsTableExpanded] = useState(false);
 
+    // Manual Range State
+    const [calendarModalVisible, setCalendarModalVisible] = useState(false);
+    const [manualStart, setManualStart] = useState(null);
+    const [manualEnd, setManualEnd] = useState(null);
+
+    // Safe local date string utility
+    const getLocalISO = (date) => {
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    };
+
     // Derived dates for filtering
-    const startDateStr = currentWeekStart.toISOString().split('T')[0];
+    const startDateStr = getLocalISO(currentWeekStart);
     const endDate = new Date(currentWeekStart);
     endDate.setDate(endDate.getDate() + 6);
-    const endDateStr = endDate.toISOString().split('T')[0];
+    const endDateStr = getLocalISO(endDate);
 
     // Generate week days for the selector (always 7 days from currentWeekStart)
     const weekDays = [];
     let curr = new Date(currentWeekStart);
     for (let i = 0; i < 7; i++) {
-        const dStr = curr.toISOString().split('T')[0];
+        const dStr = getLocalISO(curr);
         const dayData = getStatsForRange(dStr, dStr)[0] || { protein: 0, carbs: 0, fat: 0, calories: 0 };
 
         weekDays.push({
@@ -164,9 +185,28 @@ const ProgressScreen = () => {
     }
 
     useEffect(() => {
-        const stats = getStatsForRange(startDateStr, endDateStr);
+        let stats;
+        if (manualStart && manualEnd) {
+            stats = getStatsForRange(manualStart, manualEnd);
+            // Auto-select first day of manual range if current selection is outside
+            if (stats.length > 0 && !stats.find(s => s.date === selectedDate)) {
+                setSelectedDate(stats[0].date);
+            }
+        } else {
+            stats = getStatsForRange(startDateStr, endDateStr);
+        }
         setFilteredStats(stats);
-    }, [currentWeekStart]);
+    }, [currentWeekStart, manualStart, manualEnd, meals, user.goalCalories]);
+
+    // Auto-scroll rings when selectedDate changes
+    useEffect(() => {
+        if (flatListRef.current && filteredStats.length > 0) {
+            const idx = filteredStats.findIndex(s => s.date === selectedDate);
+            if (idx !== -1) {
+                flatListRef.current.scrollToIndex({ index: idx, animated: true });
+            }
+        }
+    }, [selectedDate, filteredStats]);
 
     const calChartData = filteredStats.map(d => ({
         value: d.calories,
@@ -194,9 +234,9 @@ const ProgressScreen = () => {
     }));
 
     const macroRingsData = [
-        { progress: Math.min((selectedDayData.carbs || 0) / (carbsGoal || 1), 1.2), color: colors.macronutrients.carbs, label: 'Carbs' },
-        { progress: Math.min((selectedDayData.protein || 0) / (proteinGoal || 1), 1.2), color: colors.macronutrients.protein, label: 'Prot' },
-        { progress: Math.min((selectedDayData.fat || 0) / (fatGoal || 1), 1.2), color: colors.macronutrients.fat, label: 'Grasa' },
+        { progress: (selectedDayData.carbs || 0) / (carbsGoal || 1), color: colors.macronutrients.carbs, label: 'Carbs' },
+        { progress: (selectedDayData.protein || 0) / (proteinGoal || 1), color: colors.macronutrients.protein, label: 'Prot' },
+        { progress: (selectedDayData.fat || 0) / (fatGoal || 1), color: colors.macronutrients.fat, label: 'Grasa' },
     ];
 
     const totalCalories = filteredStats.reduce((sum, d) => sum + d.calories, 0);
@@ -214,10 +254,10 @@ const ProgressScreen = () => {
             return;
         }
         const scrollX = event.nativeEvent.contentOffset.x;
-        const cardWidth = width - 72; // Ancho real de la tarjeta interna
+        const cardWidth = width - 72;
         const index = Math.round(scrollX / cardWidth);
-        if (weekDays[index] && weekDays[index].date !== selectedDate) {
-            setSelectedDate(weekDays[index].date);
+        if (filteredStats[index] && filteredStats[index].date !== selectedDate) {
+            setSelectedDate(filteredStats[index].date);
         }
     };
 
@@ -252,38 +292,88 @@ const ProgressScreen = () => {
         Alert.alert('¡Registrado!', `Tu peso de ${w}kg ha sido guardado.`);
     };
 
-    useEffect(() => {
-        const index = weekDays.findIndex(d => d.date === selectedDate);
-        if (index !== -1 && flatListRef.current) {
-            flatListRef.current.scrollToIndex({ index, animated: true });
+    const onDayPress = (day) => {
+        if (!manualStart || (manualStart && manualEnd)) {
+            setManualStart(day.dateString);
+            setManualEnd(null);
+        } else if (!manualEnd && day.dateString > manualStart) {
+            setManualEnd(day.dateString);
+        } else {
+            setManualStart(day.dateString);
+            setManualEnd(null);
         }
-    }, [selectedDate]);
+    };
+
+    const getMarkedDates = () => {
+        let marked = {};
+        if (manualStart) {
+            marked[manualStart] = { startingDay: true, color: colors.primary, textColor: 'white' };
+        }
+        if (manualEnd) {
+            marked[manualEnd] = { endingDay: true, color: colors.primary, textColor: 'white' };
+            let start = new Date(manualStart);
+            let end = new Date(manualEnd);
+            let current = new Date(start);
+            current.setDate(current.getDate() + 1);
+            while (current < end) {
+                const dateString = current.toISOString().split('T')[0];
+                marked[dateString] = { color: colors.primary + '30', textColor: colors.primary };
+                current.setDate(current.getDate() + 1);
+            }
+        }
+        return marked;
+    };
+
+    const clearRange = () => {
+        setManualStart(null);
+        setManualEnd(null);
+    };
 
     return (
         <ScrollView style={styles.container}>
-            {/* Week Navigator - Arriba del todo */}
-            <View style={styles.weekNavCard}>
-                <TouchableOpacity onPress={() => changeWeek('prev')} style={styles.weekNavBtn}>
-                    <ChevronDown size={24} color={colors.primary} style={{ transform: [{ rotate: '90deg' }] }} />
-                </TouchableOpacity>
-                <View style={styles.weekInfo}>
-                    <Calendar size={18} color={colors.primary} style={{ marginRight: 8 }} />
-                    <Text style={styles.weekText}>
-                        {weekDays[0].dayNum} {weekDays[0].month} - {weekDays[6].dayNum} {weekDays[6].month} {weekDays[6].year}
-                    </Text>
+            {/* Premium Period Selector */}
+            <View style={styles.periodRoot}>
+                <View style={styles.weekNavCard}>
+                    <TouchableOpacity onPress={() => changeWeek('prev')} style={styles.weekNavBtn}>
+                        <ChevronDown size={24} color={colors.primary} style={{ transform: [{ rotate: '90deg' }] }} />
+                    </TouchableOpacity>
+                    <View style={styles.weekInfo}>
+                        <Calendar size={18} color={colors.primary} style={{ marginRight: 8 }} />
+                        <Text style={styles.weekText}>
+                            {manualStart && manualEnd
+                                ? `${new Date(manualStart).getDate()} ${new Date(manualStart).toLocaleDateString('es-ES', { month: 'short' })} - ${new Date(manualEnd).getDate()} ${new Date(manualEnd).toLocaleDateString('es-ES', { month: 'short' })}`
+                                : `${weekDays[0].dayNum} ${weekDays[0].month} - ${weekDays[6].dayNum} ${weekDays[6].month} ${weekDays[6].year}`
+                            }
+                        </Text>
+                    </View>
+                    <TouchableOpacity onPress={() => changeWeek('next')} style={styles.weekNavBtn}>
+                        <ChevronDown size={24} color={colors.primary} style={{ transform: [{ rotate: '-90deg' }] }} />
+                    </TouchableOpacity>
                 </View>
-                <TouchableOpacity onPress={() => changeWeek('next')} style={styles.weekNavBtn}>
-                    <ChevronDown size={24} color={colors.primary} style={{ transform: [{ rotate: '-90deg' }] }} />
-                </TouchableOpacity>
+
+                <View style={styles.periodActions}>
+                    <TouchableOpacity
+                        style={[styles.calendarFilterBtn, manualStart && styles.activeFilter]}
+                        onPress={() => setCalendarModalVisible(true)}
+                    >
+                        <History size={20} color={manualStart ? colors.white : colors.primary} />
+                        <Text style={[styles.filterBtnText, manualStart && { color: 'white' }]}>Periodo Manual</Text>
+                    </TouchableOpacity>
+                    {(manualStart || manualEnd) && (
+                        <TouchableOpacity style={styles.clearBtn} onPress={clearRange}>
+                            <X size={18} color={colors.danger} />
+                        </TouchableOpacity>
+                    )}
+                </View>
             </View>
 
             {/* Day Selector - Apple Style with Mini Rings */}
             <View style={styles.daySelectorContainer}>
                 {weekDays.map((wd, index) => {
                     const miniRingsData = [
-                        { progress: Math.min((wd.stats.carbs || 0) / (carbsGoal || 1), 1), color: colors.macronutrients.carbs },
-                        { progress: Math.min((wd.stats.protein || 0) / (proteinGoal || 1), 1), color: colors.macronutrients.protein },
-                        { progress: Math.min((wd.stats.fat || 0) / (fatGoal || 1), 1), color: colors.macronutrients.fat },
+                        { progress: (wd.stats.carbs || 0) / (carbsGoal || 1), color: colors.macronutrients.carbs },
+                        { progress: (wd.stats.protein || 0) / (proteinGoal || 1), color: colors.macronutrients.protein },
+                        { progress: (wd.stats.fat || 0) / (fatGoal || 1), color: colors.macronutrients.fat },
                     ];
 
                     return (
@@ -314,7 +404,7 @@ const ProgressScreen = () => {
 
                 <FlatList
                     ref={flatListRef}
-                    data={weekDays}
+                    data={filteredStats}
                     horizontal
                     pagingEnabled
                     showsHorizontalScrollIndicator={false}
@@ -326,11 +416,29 @@ const ProgressScreen = () => {
                         index
                     })}
                     renderItem={({ item }) => {
-                        const dayStats = item.stats;
+                        const dayStats = item;
                         const ringData = [
-                            { progress: Math.min((dayStats.carbs || 0) / (carbsGoal || 1), 1.2), color: colors.macronutrients.carbs, label: 'Carbs' },
-                            { progress: Math.min((dayStats.protein || 0) / (proteinGoal || 1), 1.2), color: colors.macronutrients.protein, label: 'Prot' },
-                            { progress: Math.min((dayStats.fat || 0) / (fatGoal || 1), 1.2), color: colors.macronutrients.fat, label: 'Grasa' },
+                            {
+                                progress: (dayStats.carbs || 0) / (carbsGoal || 1),
+                                color: colors.macronutrients.carbs,
+                                label: 'Carbs',
+                                actual: Math.round(dayStats.carbs || 0),
+                                goal: carbsGoal
+                            },
+                            {
+                                progress: (dayStats.protein || 0) / (proteinGoal || 1),
+                                color: colors.macronutrients.protein,
+                                label: 'Prot',
+                                actual: Math.round(dayStats.protein || 0),
+                                goal: proteinGoal
+                            },
+                            {
+                                progress: (dayStats.fat || 0) / (fatGoal || 1),
+                                color: colors.macronutrients.fat,
+                                label: 'Grasa',
+                                actual: Math.round(dayStats.fat || 0),
+                                goal: fatGoal
+                            },
                         ];
 
                         return (
@@ -344,8 +452,11 @@ const ProgressScreen = () => {
                                         <View key={i} style={styles.legendItemSmall}>
                                             <View style={[styles.dotSmall, { backgroundColor: item.color }]} />
                                             <View>
-                                                <Text style={styles.legendLabel}>{item.label}</Text>
-                                                <Text style={styles.legendPercent}>{Math.round(item.progress * 100)}%</Text>
+                                                <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
+                                                    <Text style={styles.legendPercent}>{Math.round(item.progress * 100)}%</Text>
+                                                    <Text style={styles.legendLabel}>{item.label}</Text>
+                                                </View>
+                                                <Text style={styles.legendValue}>{item.actual}g / {item.goal}g</Text>
                                             </View>
                                         </View>
                                     ))}
@@ -511,7 +622,7 @@ const ProgressScreen = () => {
                                     <Text style={styles.tableCellSubDate}>{item.date}</Text>
                                 </View>
                                 <Text style={[styles.tableCellCal, { flex: 1, color: item.calories > user.goalCalories ? colors.danger : colors.primary }]}>
-                                    {item.calories} kcal
+                                    {Math.round(item.calories)} kcal
                                 </Text>
                                 <Text style={styles.tableCellMacros}>
                                     {Math.round(item.protein || 0)}/{Math.round(item.carbs || 0)}/{Math.round(item.fat || 0)}
@@ -523,6 +634,60 @@ const ProgressScreen = () => {
             </View>
 
             <View style={{ height: 30 }} />
+
+            {/* Modal de Calendario */}
+            <Modal
+                visible={calendarModalVisible}
+                animationType="fade"
+                transparent={true}
+                onRequestClose={() => setCalendarModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.calendarModalContent}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Seleccionar Rango</Text>
+                            <TouchableOpacity onPress={() => setCalendarModalVisible(false)}>
+                                <X size={24} color={colors.text} />
+                            </TouchableOpacity>
+                        </View>
+
+                        <RNCalendar
+                            theme={{
+                                backgroundColor: colors.card,
+                                calendarBackground: colors.card,
+                                textSectionTitleColor: colors.textSecondary,
+                                selectedDayBackgroundColor: colors.primary,
+                                selectedDayTextColor: '#ffffff',
+                                todayTextColor: colors.primary,
+                                dayTextColor: colors.text,
+                                textDisabledColor: 'rgba(255,255,255,0.1)',
+                                monthTextColor: colors.text,
+                                indicatorColor: colors.primary,
+                                textDayFontWeight: '600',
+                                textMonthFontWeight: '800',
+                                textDayHeaderFontWeight: '700',
+                            }}
+                            markingType={'period'}
+                            markedDates={getMarkedDates()}
+                            onDayPress={onDayPress}
+                        />
+
+                        <View style={styles.rangeInfo}>
+                            <Text style={styles.rangeText}>
+                                {manualStart ? `Desde: ${manualStart}` : 'Selecciona inicio'}
+                                {manualEnd ? ` • Hasta: ${manualEnd}` : ''}
+                            </Text>
+                        </View>
+
+                        <TouchableOpacity
+                            style={styles.applyButton}
+                            onPress={() => setCalendarModalVisible(false)}
+                        >
+                            <Text style={styles.applyButtonText}>Filtrar Estadísticas</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </ScrollView>
     );
 };
@@ -536,10 +701,21 @@ const MacroRings = ({ data, size, strokeWidth = 14, spacing = 4 }) => {
                 {data.map((item, index) => {
                     const radius = (size / 2) - (index * (strokeWidth + spacing)) - (strokeWidth / 2);
                     const circumference = 2 * Math.PI * radius;
-                    const offset = circumference - (item.progress * circumference);
+
+                    // Cap metrics for logic but allow over-progress visually
+                    const progress = item.progress || 0;
+
+                    // Base Lap (0 to 100%)
+                    const baseProgress = Math.min(progress, 1);
+                    const baseOffset = circumference - (baseProgress * circumference);
+
+                    // Overflow Lap (100% to 200%)
+                    const overflowProgress = Math.min(Math.max(progress - 1, 0), 1);
+                    const overflowOffset = circumference - (overflowProgress * circumference);
 
                     return (
                         <G key={index}>
+                            {/* Track (Fondo) */}
                             <Circle
                                 cx={center}
                                 cy={center}
@@ -549,6 +725,7 @@ const MacroRings = ({ data, size, strokeWidth = 14, spacing = 4 }) => {
                                 strokeOpacity={0.15}
                                 fill="none"
                             />
+                            {/* Base Layer */}
                             <Circle
                                 cx={center}
                                 cy={center}
@@ -556,10 +733,30 @@ const MacroRings = ({ data, size, strokeWidth = 14, spacing = 4 }) => {
                                 stroke={item.color}
                                 strokeWidth={strokeWidth}
                                 strokeDasharray={circumference}
-                                strokeDashoffset={offset}
+                                strokeDashoffset={baseOffset}
                                 strokeLinecap="round"
                                 fill="none"
                             />
+                            {/* Overflow Layer (Drawn on top if > 100%) */}
+                            {progress > 1 && (
+                                <Circle
+                                    cx={center}
+                                    cy={center}
+                                    r={radius}
+                                    stroke={item.color}
+                                    strokeWidth={strokeWidth}
+                                    strokeDasharray={circumference}
+                                    strokeDashoffset={overflowOffset}
+                                    strokeLinecap="round"
+                                    fill="none"
+                                    style={{
+                                        shadowColor: '#000',
+                                        shadowOffset: { width: 0, height: 2 },
+                                        shadowOpacity: 0.3,
+                                        shadowRadius: 2,
+                                    }}
+                                />
+                            )}
                         </G>
                     );
                 })}
@@ -673,14 +870,20 @@ const styles = StyleSheet.create({
         marginRight: 10,
     },
     legendLabel: {
-        fontSize: 12,
+        fontSize: 10,
         color: colors.textSecondary,
         fontWeight: '600',
+        textTransform: 'uppercase',
     },
     legendPercent: {
-        fontSize: 14,
+        fontSize: 16,
         color: colors.text,
-        fontWeight: '800',
+        fontWeight: '900',
+    },
+    legendValue: {
+        fontSize: 11,
+        color: colors.textSecondary,
+        fontWeight: '600',
     },
     filterCard: {
         backgroundColor: colors.card,
@@ -746,17 +949,54 @@ const styles = StyleSheet.create({
         shadowRadius: 10,
         elevation: 3,
     },
+    periodRoot: {
+        marginBottom: 16,
+    },
     weekNavCard: {
         backgroundColor: colors.card,
         borderRadius: 20,
-        padding: 16,
-        marginTop: 16,
-        marginBottom: 16,
+        padding: 12,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         borderWidth: 1,
         borderColor: colors.border,
+    },
+    periodActions: {
+        flexDirection: 'row',
+        marginTop: 12,
+        gap: 8,
+    },
+    calendarFilterBtn: {
+        flex: 1,
+        height: 48,
+        backgroundColor: colors.card,
+        borderRadius: 15,
+        borderWidth: 1,
+        borderColor: colors.primary + '40',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+    },
+    activeFilter: {
+        backgroundColor: colors.primary,
+        borderColor: colors.primary,
+    },
+    filterBtnText: {
+        color: colors.primary,
+        fontWeight: '800',
+        fontSize: 14,
+    },
+    clearBtn: {
+        width: 48,
+        height: 48,
+        backgroundColor: colors.danger + '10',
+        borderRadius: 15,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: colors.danger + '20',
     },
     weekNavBtn: {
         width: 44,
@@ -980,30 +1220,54 @@ const styles = StyleSheet.create({
         textTransform: 'uppercase',
         letterSpacing: 0.5,
     },
-    historyList: {
-        gap: 8,
-    },
-    miniHistoryItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    historyDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        backgroundColor: colors.primary,
-        marginRight: 10,
-    },
-    historyDateText: {
+    modalOverlay: {
         flex: 1,
-        fontSize: 13,
+        backgroundColor: 'rgba(0,0,0,0.7)',
+        justifyContent: 'center',
+    },
+    calendarModalContent: {
+        backgroundColor: colors.card,
+        borderRadius: 30,
+        padding: 24,
+        margin: 20,
+        width: '94%',
+        alignSelf: 'center',
+        borderWidth: 1,
+        borderColor: colors.border,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: '800',
         color: colors.text,
     },
-    historyWeightText: {
+    rangeInfo: {
+        marginVertical: 20,
+        padding: 12,
+        backgroundColor: colors.background,
+        borderRadius: 12,
+        alignItems: 'center',
+    },
+    rangeText: {
+        color: colors.text,
         fontSize: 14,
         fontWeight: '700',
-        color: colors.primary,
+    },
+    applyButton: {
+        backgroundColor: colors.primary,
+        paddingVertical: 15,
+        borderRadius: 15,
+        alignItems: 'center',
+    },
+    applyButtonText: {
+        color: 'white',
+        fontWeight: '800',
+        fontSize: 16,
     },
 });
 

@@ -1,12 +1,26 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SectionList, Alert, Modal, TextInput } from 'react-native';
-import { Plus, Coffee, Utensils, Moon, Apple, Calendar, Clock, ChevronRight, X, Edit2, Save, Star } from 'lucide-react-native';
+import { View, Text, StyleSheet, TouchableOpacity, SectionList, Alert, Modal, TextInput, Keyboard, TouchableWithoutFeedback, KeyboardAvoidingView, Platform } from 'react-native';
+import { Plus, Coffee, Utensils, Moon, Apple, Calendar, Clock, ChevronRight, X, Edit2, Save, Star, Search, ChevronDown, ChevronUp, History } from 'lucide-react-native';
 import { colors } from '../theme/colors';
+import { r } from '../utils/formatNumber';
 import { useApp } from '../context/AppContext';
 import { useNavigation } from '@react-navigation/native';
+import { analyzeMealGroup } from '../utils/coachLogic';
+import MealCoach from '../components/MealCoach';
+import { Calendar as RNCalendar, LocaleConfig } from 'react-native-calendars';
+
+// Configurar locale español para el calendario
+LocaleConfig.locales['es'] = {
+    monthNames: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'],
+    monthNamesShort: ['Ene.', 'Feb.', 'Mar', 'Abr', 'May', 'Jun', 'Jul.', 'Ago', 'Sep.', 'Oct.', 'Nov.', 'Dic.'],
+    dayNames: ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'],
+    dayNamesShort: ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'],
+    today: 'Hoy'
+};
+LocaleConfig.defaultLocale = 'es';
 
 const DiaryScreen = () => {
-    const { meals, deleteMeal, updateMeal, favorites, toggleFavorite } = useApp();
+    const { meals, deleteMeal, updateMeal, favorites, toggleFavorite, user } = useApp();
     const navigation = useNavigation();
 
     // Edit State
@@ -15,6 +29,13 @@ const DiaryScreen = () => {
     const [editTitle, setEditTitle] = useState('');
     const [editGrams, setEditGrams] = useState('');
     const [editDate, setEditDate] = useState('');
+
+    // History State
+    const [historySearch, setHistorySearch] = useState('');
+    const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
+    const [calendarModalVisible, setCalendarModalVisible] = useState(false);
+    const [startDate, setStartDate] = useState(null);
+    const [endDate, setEndDate] = useState(null);
 
     const handleDelete = (item) => {
         Alert.alert(
@@ -38,21 +59,23 @@ const DiaryScreen = () => {
     const saveEdit = () => {
         if (!editingMeal) return;
 
-        const newGrams = parseInt(editGrams);
-        if (isNaN(newGrams) || newGrams <= 0) {
+        const isRecipe = editingMeal.isRecipe || editingMeal.category === 'Recetas';
+        const newQty = parseFloat(editGrams);
+        if (isNaN(newQty) || newQty <= 0) {
             Alert.alert('Error', 'Introduce una cantidad válida.');
             return;
         }
 
-        // Si tenemos los gramos originales, escalamos macros
+        // Si tenemos la cantidad original, escalamos macros
         let updates = {
             title: editTitle,
             date: editDate,
-            grams: newGrams
+            grams: newQty
         };
 
-        if (editingMeal.grams && editingMeal.grams > 0) {
-            const ratio = newGrams / editingMeal.grams;
+        const oldQty = editingMeal.grams || (isRecipe ? 1 : 100);
+        if (oldQty > 0) {
+            const ratio = newQty / oldQty;
             updates.calories = Math.round(editingMeal.calories * ratio);
             updates.protein = Math.round(editingMeal.protein * ratio);
             updates.carbs = Math.round(editingMeal.carbs * ratio);
@@ -79,8 +102,8 @@ const DiaryScreen = () => {
 
         if (hour >= 6 && hour < 12) return 'Desayuno';
         if (hour >= 12 && hour < 17) return 'Almuerzo';
-        if (hour >= 17 && hour < 21) return 'Merienda';
-        if (hour >= 21 || hour < 6) return 'Cena';
+        if (hour >= 17 && hour < 20) return 'Merienda';
+        if (hour >= 20 || hour < 6) return 'Cena';
         return 'Snack';
     };
 
@@ -95,33 +118,121 @@ const DiaryScreen = () => {
         }
     };
 
-    const today = new Date().toISOString().split('T')[0];
+    const todayDate = new Date();
+    const today = todayDate.toISOString().split('T')[0];
+
+    const yesterdayDate = new Date();
+    yesterdayDate.setDate(todayDate.getDate() - 1);
+    const yesterday = yesterdayDate.toISOString().split('T')[0];
 
     // Split and group meals
-    const todayMeals = meals.filter(m => m.date === today);
-    const historyMeals = meals.filter(m => m.date !== today);
+    const todayMealsRaw = meals.filter(m => m.date === today);
+    const yesterdayMeals = meals.filter(m => m.date === yesterday);
+    const olderMeals = meals.filter(m => m.date !== today && m.date !== yesterday);
 
-    // Group history by date
-    const historyGrouped = historyMeals.reduce((acc, meal) => {
-        const dateStr = new Date(meal.date).toLocaleDateString('es-ES', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long'
-        });
-        if (!acc[dateStr]) acc[dateStr] = [];
-        acc[dateStr].push(meal);
+    const onDayPress = (day) => {
+        if (!startDate || (startDate && endDate)) {
+            setStartDate(day.dateString);
+            setEndDate(null);
+        } else if (!endDate && day.dateString > startDate) {
+            setEndDate(day.dateString);
+        } else {
+            setStartDate(day.dateString);
+            setEndDate(null);
+        }
+    };
+
+    const clearDateFilter = () => {
+        setStartDate(null);
+        setEndDate(null);
+        setHistorySearch('');
+    };
+
+    const getMarkedDates = () => {
+        let marked = {};
+        if (startDate) {
+            marked[startDate] = { startingDay: true, color: colors.primary, textColor: 'white' };
+        }
+        if (endDate) {
+            marked[endDate] = { endingDay: true, color: colors.primary, textColor: 'white' };
+            // Llenar el rango
+            let start = new Date(startDate);
+            let end = new Date(endDate);
+            let current = new Date(start);
+            current.setDate(current.getDate() + 1);
+
+            while (current < end) {
+                const dateString = current.toISOString().split('T')[0];
+                marked[dateString] = { color: colors.primary + '30', textColor: colors.primary };
+                current.setDate(current.getDate() + 1);
+            }
+        }
+        return marked;
+    };
+
+    // Group Today by Type (Reversed order for recent first)
+    const mealTypesOrder = ['Snack', 'Cena', 'Merienda', 'Almuerzo', 'Desayuno'];
+    const todayGrouped = todayMealsRaw.reduce((acc, meal) => {
+        const type = getMealType(meal.time);
+        if (!acc[type]) acc[type] = [];
+        acc[type].push(meal);
         return acc;
     }, {});
 
-    const historySections = Object.keys(historyGrouped).map(date => ({
-        title: date,
-        data: historyGrouped[date],
-        isHistory: true
-    }));
+    const todaySections = mealTypesOrder
+        .filter(type => todayGrouped[type])
+        .map(type => ({
+            title: `Hoy - ${type}`,
+            type,
+            data: todayGrouped[type],
+            isHistory: false,
+            isOlder: false,
+            analysis: analyzeMealGroup(todayGrouped[type], user, type)
+        }));
+
+    // Ayer section
+    const yesterdaySections = yesterdayMeals.length > 0 ? [{
+        title: 'Ayer',
+        data: yesterdayMeals,
+        isHistory: true, // Show macros but simpler
+        isOlder: false
+    }] : [];
+
+    // Filtered Older Meals (Search by range or search bar)
+    const filteredOlder = olderMeals.filter(m => {
+        // Range Filter priority
+        if (startDate && endDate) {
+            return m.date >= startDate && m.date <= endDate;
+        } else if (startDate && !endDate) {
+            return m.date === startDate;
+        }
+
+        // Search Bar Fallback
+        if (historySearch === '') return true;
+
+        const dateObj = new Date(m.date);
+        const localizedDate = dateObj.toLocaleDateString('es-ES', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+        }).toLowerCase();
+
+        return m.date.includes(historySearch) || localizedDate.includes(historySearch.toLowerCase());
+    });
+
+    // History section
+    const historySection = {
+        title: 'Historial',
+        data: isHistoryExpanded ? filteredOlder : [],
+        isHistory: true,
+        isOlder: true
+    };
 
     const sections = [
-        { title: 'Hoy', data: todayMeals, isHistory: false },
-        ...historySections
+        ...todaySections,
+        ...yesterdaySections,
+        historySection
     ];
 
     const renderItem = ({ item, section }) => (
@@ -149,12 +260,13 @@ const DiaryScreen = () => {
                         <Clock size={12} color={colors.textSecondary} style={{ marginRight: 4 }} />
                         <Text style={styles.mealTime}>
                             {item.time} • <Text style={{ color: colors.primary, fontWeight: '700' }}>{getMealType(item.time)}</Text>
+                            <Text style={{ color: colors.textSecondary }}> • {item.grams}{(item.isRecipe || item.category === 'Recetas') ? ' ración' : (item.title?.toLowerCase().includes('leche') || item.title?.toLowerCase().includes('bebida') || item.title?.toLowerCase().includes('zumo') ? 'ml' : 'g')}</Text>
                         </Text>
                     </View>
                 </View>
                 <View style={styles.rightActionRow}>
                     <View style={styles.calWrapper}>
-                        <Text style={styles.mealCalories}>{item.calories}</Text>
+                        <Text style={styles.mealCalories}>{Math.round(item.calories)}</Text>
                         <Text style={styles.calUnit}>kcal</Text>
                     </View>
                     <TouchableOpacity
@@ -176,32 +288,86 @@ const DiaryScreen = () => {
                 <View style={styles.macroRow}>
                     <View style={styles.macroTag}>
                         <View style={[styles.dot, { backgroundColor: colors.macronutrients.protein }]} />
-                        <Text style={styles.macroText}>P: {item.protein}g</Text>
+                        <Text style={styles.macroText}>P: {r(item.protein)}g</Text>
                     </View>
                     <View style={styles.macroTag}>
                         <View style={[styles.dot, { backgroundColor: colors.macronutrients.carbs }]} />
-                        <Text style={styles.macroText}>C: {item.carbs}g</Text>
+                        <Text style={styles.macroText}>C: {r(item.carbs)}g</Text>
                     </View>
                     <View style={styles.macroTag}>
                         <View style={[styles.dot, { backgroundColor: colors.macronutrients.fat }]} />
-                        <Text style={styles.macroText}>G: {item.fat}g</Text>
+                        <Text style={styles.macroText}>G: {r(item.fat)}g</Text>
                     </View>
                 </View>
             )}
         </TouchableOpacity>
     );
 
-    const renderSectionHeader = ({ section }) => (
-        <View style={[styles.sectionHeader, section.isHistory && styles.historyHeader]}>
-            <View style={styles.sectionTitleRow}>
-                {section.isHistory ? <Calendar size={18} color={colors.textSecondary} /> : <View style={styles.todayIndicator} />}
-                <Text style={[styles.sectionTitle, section.isHistory && styles.historyTitle]}>
-                    {section.title}
-                </Text>
+    const renderSectionHeader = ({ section }) => {
+        const isToday = !section.isHistory;
+        const isHistoryGroup = section.isOlder;
+
+        if (isHistoryGroup) {
+            return (
+                <View style={styles.historyGroupContainer}>
+                    <TouchableOpacity
+                        style={styles.historyToggle}
+                        onPress={() => setIsHistoryExpanded(!isHistoryExpanded)}
+                    >
+                        <View style={styles.historyHeaderLeft}>
+                            <History size={20} color={colors.primary} />
+                            <Text style={styles.historyGroupTitle}>Historial Completo</Text>
+                        </View>
+                        {isHistoryExpanded ? <ChevronUp size={20} color={colors.textSecondary} /> : <ChevronDown size={20} color={colors.textSecondary} />}
+                    </TouchableOpacity>
+
+                    {isHistoryExpanded && (
+                        <View style={styles.historyControls}>
+                            <View style={styles.searchContainer}>
+                                <Search size={16} color={colors.textSecondary} />
+                                <TextInput
+                                    style={styles.searchInput}
+                                    placeholder="Filtrar por fecha o mes..."
+                                    placeholderTextColor={colors.textSecondary}
+                                    value={historySearch}
+                                    onChangeText={setHistorySearch}
+                                />
+                                {(historySearch !== '' || startDate) && (
+                                    <TouchableOpacity onPress={clearDateFilter}>
+                                        <X size={16} color={colors.textSecondary} />
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                            <TouchableOpacity
+                                style={[styles.calendarTrigger, startDate && styles.activeTrigger]}
+                                onPress={() => setCalendarModalVisible(true)}
+                            >
+                                <Calendar size={20} color={startDate ? colors.white : colors.textSecondary} />
+                            </TouchableOpacity>
+                        </View>
+                    )}
+                </View>
+            );
+        }
+
+        return (
+            <View style={styles.sectionHeaderContainer}>
+                <View style={[styles.sectionHeader, section.isHistory && styles.historyHeader]}>
+                    <View style={styles.sectionTitleRow}>
+                        {section.isHistory ? <Calendar size={18} color={colors.textSecondary} /> : <View style={styles.todayIndicator} />}
+                        <Text style={[styles.sectionTitle, section.isHistory && styles.historyTitle]}>
+                            {section.title}
+                        </Text>
+                    </View>
+                    {section.isHistory && <ChevronRight size={20} color={colors.textSecondary} />}
+                </View>
+
+                {isToday && section.analysis && (
+                    <MealCoach analysis={section.analysis} />
+                )}
             </View>
-            {section.isHistory && <ChevronRight size={20} color={colors.textSecondary} />}
-        </View>
-    );
+        );
+    };
 
     return (
         <View style={styles.container}>
@@ -229,50 +395,120 @@ const DiaryScreen = () => {
                 transparent={true}
                 onRequestClose={() => setEditModalVisible(false)}
             >
+                <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                    <View style={styles.modalOverlay}>
+                        <KeyboardAvoidingView
+                            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                            style={{ width: '100%' }}
+                        >
+                            <View style={styles.modalContent}>
+                                <View style={styles.modalHeader}>
+                                    <Text style={styles.modalTitle}>Editar Registro</Text>
+                                    <TouchableOpacity onPress={() => setEditModalVisible(false)}>
+                                        <X size={24} color={colors.text} />
+                                    </TouchableOpacity>
+                                </View>
+
+                                <Text style={styles.label}>Nombre del Alimento</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    value={editTitle}
+                                    onChangeText={setEditTitle}
+                                    returnKeyType="done"
+                                />
+
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                    <Text style={styles.label}>
+                                        {(editingMeal?.isRecipe || editingMeal?.category === 'Recetas') ? 'Cantidad (raciones)' : 'Cantidad (gramos/ml)'}
+                                    </Text>
+                                    {(editingMeal?.isRecipe || editingMeal?.category === 'Recetas') && (
+                                        <Text style={{ fontSize: 10, color: colors.primary, fontWeight: '700' }}>RECETA</Text>
+                                    )}
+                                </View>
+                                <TextInput
+                                    style={styles.input}
+                                    value={editGrams}
+                                    onChangeText={setEditGrams}
+                                    keyboardType="numeric"
+                                    returnKeyType="done"
+                                />
+
+                                <Text style={styles.label}>Fecha (YYYY-MM-DD)</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    value={editDate}
+                                    onChangeText={setEditDate}
+                                    returnKeyType="done"
+                                />
+
+                                <TouchableOpacity style={styles.saveButton} onPress={saveEdit}>
+                                    <Save size={20} color={colors.white} />
+                                    <Text style={styles.saveButtonText}>Guardar Cambios</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.deleteLink}
+                                    onPress={() => {
+                                        setEditModalVisible(false);
+                                        handleDelete(editingMeal);
+                                    }}
+                                >
+                                    <Text style={styles.deleteLinkText}>Eliminar este registro</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </KeyboardAvoidingView>
+                    </View>
+                </TouchableWithoutFeedback>
+            </Modal>
+            {/* Modal de Calendario */}
+            <Modal
+                visible={calendarModalVisible}
+                animationType="fade"
+                transparent={true}
+                onRequestClose={() => setCalendarModalVisible(false)}
+            >
                 <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
+                    <View style={styles.calendarModalContent}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Editar Registro</Text>
-                            <TouchableOpacity onPress={() => setEditModalVisible(false)}>
+                            <Text style={styles.modalTitle}>Filtrar por Periodo</Text>
+                            <TouchableOpacity onPress={() => setCalendarModalVisible(false)}>
                                 <X size={24} color={colors.text} />
                             </TouchableOpacity>
                         </View>
 
-                        <Text style={styles.label}>Nombre del Alimento</Text>
-                        <TextInput
-                            style={styles.input}
-                            value={editTitle}
-                            onChangeText={setEditTitle}
+                        <RNCalendar
+                            theme={{
+                                backgroundColor: colors.card,
+                                calendarBackground: colors.card,
+                                textSectionTitleColor: colors.textSecondary,
+                                selectedDayBackgroundColor: colors.primary,
+                                selectedDayTextColor: '#ffffff',
+                                todayTextColor: colors.primary,
+                                dayTextColor: colors.text,
+                                textDisabledColor: 'rgba(255,255,255,0.1)',
+                                monthTextColor: colors.text,
+                                indicatorColor: colors.primary,
+                                textDayFontWeight: '600',
+                                textMonthFontWeight: '800',
+                                textDayHeaderFontWeight: '700',
+                            }}
+                            markingType={'period'}
+                            markedDates={getMarkedDates()}
+                            onDayPress={onDayPress}
                         />
 
-                        <Text style={styles.label}>Cantidad (gramos)</Text>
-                        <TextInput
-                            style={styles.input}
-                            value={editGrams}
-                            onChangeText={setEditGrams}
-                            keyboardType="numeric"
-                        />
-
-                        <Text style={styles.label}>Fecha (YYYY-MM-DD)</Text>
-                        <TextInput
-                            style={styles.input}
-                            value={editDate}
-                            onChangeText={setEditDate}
-                        />
-
-                        <TouchableOpacity style={styles.saveButton} onPress={saveEdit}>
-                            <Save size={20} color={colors.white} />
-                            <Text style={styles.saveButtonText}>Guardar Cambios</Text>
-                        </TouchableOpacity>
+                        <View style={styles.rangeInfo}>
+                            <Text style={styles.rangeText}>
+                                {startDate ? `Desde: ${startDate}` : 'Selecciona inicio'}
+                                {endDate ? ` • Hasta: ${endDate}` : ''}
+                            </Text>
+                        </View>
 
                         <TouchableOpacity
-                            style={styles.deleteLink}
-                            onPress={() => {
-                                setEditModalVisible(false);
-                                handleDelete(editingMeal);
-                            }}
+                            style={styles.applyButton}
+                            onPress={() => setCalendarModalVisible(false)}
                         >
-                            <Text style={styles.deleteLinkText}>Eliminar este registro</Text>
+                            <Text style={styles.applyButtonText}>Aplicar Filtro</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -307,6 +543,69 @@ const styles = StyleSheet.create({
         backgroundColor: colors.primary,
         borderRadius: 2,
         marginRight: 10,
+    },
+    historyGroupContainer: {
+        marginTop: 32,
+        backgroundColor: colors.card,
+        borderRadius: 20,
+        padding: 4,
+        borderWidth: 1,
+        borderColor: colors.border,
+        overflow: 'hidden',
+    },
+    historyToggle: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: 16,
+    },
+    historyHeaderLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    historyGroupTitle: {
+        fontSize: 16,
+        fontWeight: '800',
+        color: colors.text,
+    },
+    historyControls: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 8,
+        gap: 8,
+        marginBottom: 12,
+    },
+    searchContainer: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: colors.background,
+        paddingHorizontal: 12,
+        borderRadius: 12,
+        height: 44,
+        borderWidth: 1,
+        borderColor: colors.border,
+    },
+    calendarTrigger: {
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        backgroundColor: colors.background,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: colors.border,
+    },
+    activeTrigger: {
+        backgroundColor: colors.primary,
+        borderColor: colors.primary,
+    },
+    searchInput: {
+        flex: 1,
+        marginLeft: 10,
+        fontSize: 14,
+        color: colors.text,
     },
     sectionTitle: {
         fontSize: 22,
@@ -455,6 +754,39 @@ const styles = StyleSheet.create({
         borderTopRightRadius: 30,
         padding: 24,
         paddingBottom: 40,
+    },
+    calendarModalContent: {
+        backgroundColor: colors.card,
+        borderRadius: 30,
+        padding: 24,
+        margin: 20,
+        width: '90%',
+        alignSelf: 'center',
+        borderWidth: 1,
+        borderColor: colors.border,
+    },
+    rangeInfo: {
+        marginVertical: 20,
+        padding: 12,
+        backgroundColor: colors.background,
+        borderRadius: 12,
+        alignItems: 'center',
+    },
+    rangeText: {
+        color: colors.text,
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    applyButton: {
+        backgroundColor: colors.primary,
+        paddingVertical: 15,
+        borderRadius: 15,
+        alignItems: 'center',
+    },
+    applyButtonText: {
+        color: 'white',
+        fontWeight: '800',
+        fontSize: 16,
     },
     modalHeader: {
         flexDirection: 'row',

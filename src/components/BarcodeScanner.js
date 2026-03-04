@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, TouchableOpacity, Modal, ActivityIndicator, Ale
 import { CameraView } from 'expo-camera';
 import { X, Plus, Minus, Check, ShoppingBag } from 'lucide-react-native';
 import { colors } from '../theme/colors';
+import { r } from '../utils/formatNumber';
 import { useApp } from '../context/AppContext';
 
 const BarcodeScanner = ({ visible, onClose }) => {
@@ -121,7 +122,7 @@ const BarcodeScanner = ({ visible, onClose }) => {
                             {foundProduct.brand ? (
                                 <Text style={styles.productBrand}>{foundProduct.brand}</Text>
                             ) : null}
-                            <Text style={styles.per100}>Valores por 100g: {foundProduct.calories100g} kcal | P:{foundProduct.protein100g}g C:{foundProduct.carbs100g}g G:{foundProduct.fat100g}g</Text>
+                            <Text style={styles.per100}>Valores por 100g: {r(foundProduct.calories100g)} kcal | P:{r(foundProduct.protein100g)}g C:{r(foundProduct.carbs100g)}g G:{r(foundProduct.fat100g)}g</Text>
                         </View>
 
                         {/* Selector de cantidad */}

@@ -8,13 +8,18 @@ if (fs.existsSync(gradlePropsPath)) {
 
     // Use regex to replace any existing jvmargs line to be more robust
     const jvmArgsRegex = /^org\.gradle\.jvmargs=.*$/m;
-    const newJvmArgs = 'org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+UseParallelGC -XX:+HeapDumpOnOutOfMemoryError';
+    const newJvmArgs = 'org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=1024m -XX:+UseParallelGC -XX:+HeapDumpOnOutOfMemoryError -Dkotlin.daemon.jvm.options="-Xmx3g"';
 
     if (jvmArgsRegex.test(content)) {
         content = content.replace(jvmArgsRegex, newJvmArgs);
     } else {
         content += `\n${newJvmArgs}\n`;
     }
+
+    // Explicitly set Kotlin daemon and disable KSP incremental compilation for stability
+    content += '\nkotlin.daemon.jvm.options=-Xmx4g\n';
+    content += 'ksp.incremental=false\n';
+    content += 'ksp.incremental.log=true\n';
 
     fs.writeFileSync(gradlePropsPath, content, 'utf8');
 

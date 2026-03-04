@@ -1,16 +1,22 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, TextInput, Alert, useWindowDimensions, Dimensions, Switch } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, TextInput, Alert, useWindowDimensions, Dimensions, Switch, Keyboard, TouchableWithoutFeedback, KeyboardAvoidingView, Platform, Modal, ActivityIndicator } from 'react-native';
+import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
+import { db } from '../config/firebase';
+import { getLevelInfo } from '../utils/gamificationLogic';
 import * as ImagePicker from 'expo-image-picker';
-import { User, Camera, Settings, ChevronRight, LogOut, Trophy, Target, Zap, Flame, CheckCircle2, Crown, Sparkles, Activity, RefreshCw, Award } from 'lucide-react-native';
+import { User, Camera, Settings, ChevronRight, LogOut, Trophy, Target, Zap, Flame, CheckCircle2, Crown, Sparkles, Activity, RefreshCw, Award, Leaf, Wheat, Milk, Plus, TrendingUp, X } from 'lucide-react-native';
 import { colors } from '../theme/colors';
 import { useApp } from '../context/AppContext';
 import { useNavigation } from '@react-navigation/native';
 import PremiumModal from '../components/PremiumModal';
 import { PieChart } from 'react-native-chart-kit';
 
+import appConfig from '../../app.json';
+
 const ProfileScreen = () => {
     const { user, updateUser, meals, streak, logout, weightHistory, logWeight, loginWithEmail, syncWeightFromHealth, isNewUser, setIsNewUser } = useApp();
     const navigation = useNavigation();
+    const appVersion = appConfig.expo.version;
     const { width } = useWindowDimensions();
     const [name, setName] = useState(user.name);
     const [showPremium, setShowPremium] = useState(false);
@@ -21,6 +27,38 @@ const ProfileScreen = () => {
     const [isSyncing, setIsSyncing] = useState(false);
     const [activityLevel, setActivityLevel] = useState(user.activityLevel || 1.2);
     const [goal, setGoal] = useState(user.goal || 'maintain');
+    const [dietType, setDietType] = useState(user.dietType || 'omnivore');
+    const [restrictions, setRestrictions] = useState(user.restrictions || []);
+
+    // States for Leaderboard
+    const [showLeaderboard, setShowLeaderboard] = useState(false);
+    const [leaderboardData, setLeaderboardData] = useState([]);
+    const [isFetchingLeaderboard, setIsFetchingLeaderboard] = useState(false);
+
+    // Fetch Leaderboard Function
+    const fetchLeaderboard = async () => {
+        setIsFetchingLeaderboard(true);
+        try {
+            const q = query(collection(db, 'leaderboard_profiles'), orderBy('xp', 'desc'), limit(15));
+            const querySnapshot = await getDocs(q);
+            const usersList = [];
+            querySnapshot.forEach((doc) => {
+                const data = doc.data();
+                usersList.push({
+                    id: doc.id,
+                    name: data.name || 'Héroe NutriTrack',
+                    xp: data.xp || 0,
+                    photoURL: data.photoURL || null,
+                });
+            });
+            setLeaderboardData(usersList);
+        } catch (error) {
+            console.error("Error fetching leaderboard: ", error);
+            Alert.alert("Error", "No se pudo cargar el ranking global.");
+        } finally {
+            setIsFetchingLeaderboard(false);
+        }
+    };
 
     // Sincronizar peso del perfil cuando cambia desde Stats (logWeight)
     React.useEffect(() => {
@@ -53,11 +91,13 @@ const ProfileScreen = () => {
             gender,
             activityLevel,
             goal,
+            dietType,
+            restrictions,
             ...nutrients
         });
         // Clear new user flag after profile is updated
         if (isNewUser) setIsNewUser(false);
-    }, [name, age, weight, height, gender, activityLevel, goal]);
+    }, [name, age, weight, height, gender, activityLevel, goal, dietType, restrictions]);
 
     const pickImage = async () => {
         const result = await ImagePicker.launchImageLibraryAsync({
@@ -126,11 +166,27 @@ const ProfileScreen = () => {
     const handleSyncHealthConnect = async () => {
         setIsSyncing(true);
         try {
-            await syncWeightFromHealth();
-            Alert.alert("Éxito", "Peso sincronizado desde Health Connect.");
+            // Add a timeout so it doesn't hang forever
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('timeout')), 15000)
+            );
+            const result = await Promise.race([
+                syncWeightFromHealth(),
+                timeoutPromise
+            ]);
+
+            if (result?.success) {
+                Alert.alert("✅ Éxito", `Peso sincronizado: ${result.weight} kg`);
+            } else {
+                Alert.alert("Aviso", result?.error || "No se pudo sincronizar el peso.");
+            }
         } catch (error) {
             console.error("Error syncing weight from Health Connect:", error);
-            Alert.alert("Error", "No se pudo sincronizar el peso desde Health Connect.");
+            if (error?.message === 'timeout') {
+                Alert.alert("Timeout", "La conexión con Health Connect tardó demasiado. Inténtalo de nuevo.");
+            } else {
+                Alert.alert("Error", "No se pudo conectar con Health Connect. Asegúrate de tener la app instalada y actualizada.");
+            }
         } finally {
             setIsSyncing(false);
         }
@@ -138,341 +194,491 @@ const ProfileScreen = () => {
 
 
     return (
-        <ScrollView style={styles.container}>
-            {user.isPro ? (
-                <View style={[styles.proSection, { marginBottom: 15 }]}>
-                    <TouchableOpacity
-                        style={styles.proCard}
-                        onPress={() => navigation.navigate('Subscription')}
-                    >
-                        <View style={styles.proInfo}>
-                            <View style={styles.proIconCircle}>
-                                <Trophy size={24} color={colors.accent} />
+        <>
+            <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
+                {user.isPro ? (
+                    <View style={[styles.proSection, { marginBottom: 15 }]}>
+                        <TouchableOpacity
+                            style={styles.proCard}
+                            onPress={() => navigation.navigate('Subscription')}
+                        >
+                            <View style={styles.proInfo}>
+                                <View style={styles.proIconCircle}>
+                                    <Trophy size={24} color={colors.accent} />
+                                </View>
+                                <View>
+                                    <Text style={styles.proTitle}>Gestión de Suscripción</Text>
+                                    <Text style={styles.proStatus}>Ver detalles del plan PRO ✨</Text>
+                                </View>
                             </View>
-                            <View>
-                                <Text style={styles.proTitle}>Gestión de Suscripción</Text>
-                                <Text style={styles.proStatus}>Ver detalles del plan PRO ✨</Text>
-                            </View>
-                        </View>
-                        <ChevronRight size={20} color={colors.textSecondary} />
-                    </TouchableOpacity>
-                </View>
-            ) : (
-                <View style={[styles.proSection, { marginBottom: 15 }]}>
-                    <TouchableOpacity
-                        style={styles.proCard}
-                        onPress={() => navigation.navigate('Subscription')}
-                    >
-                        <View style={styles.proInfo}>
-                            <View style={styles.proIconCircle}>
-                                <Zap size={24} color={colors.accent} fill={colors.accent} />
-                            </View>
-                            <View>
-                                <Text style={styles.proTitle}>Prueba NutriTrack PRO</Text>
-                                <Text style={styles.proStatus}>Gestionar opciones de pago ✨</Text>
-                            </View>
-                        </View>
-                        <ChevronRight size={20} color={colors.textSecondary} />
-                    </TouchableOpacity>
-                </View>
-            )}
-
-            <PremiumModal
-                visible={showPremium}
-                onClose={() => setShowPremium(false)}
-            />
-
-            {/* Header */}
-            <View style={styles.profileHeader}>
-                <TouchableOpacity style={styles.avatarWrapper} onPress={pickImage}>
-                    <View style={styles.avatarContainer}>
-                        {user.profileImage ? (
-                            <Image source={{ uri: user.profileImage }} style={styles.avatarImage} />
-                        ) : (
-                            <User size={50} color={colors.primary} />
-                        )}
-                        <View style={styles.cameraIconBadge}>
-                            <Camera size={14} color={colors.white} />
-                        </View>
+                            <ChevronRight size={20} color={colors.textSecondary} />
+                        </TouchableOpacity>
                     </View>
-                </TouchableOpacity>
-
-                <TextInput
-                    style={styles.userNameInput}
-                    value={name}
-                    onChangeText={setName}
-                    placeholder="Tu Nombre"
-                    placeholderTextColor={colors.textSecondary}
-                />
-                <Text style={styles.userEmail}>{user.email || 'david@example.com'}</Text>
-
-                <TouchableOpacity
-                    style={[styles.saveButton, { backgroundColor: 'transparent', marginTop: 10, borderWidth: 1, borderColor: colors.danger }]}
-                    onPress={logout}
-                >
-                    <LogOut size={18} color={colors.danger} />
-                    <Text style={[styles.saveButtonText, { color: colors.danger }]}>Cerrar Sesión</Text>
-                </TouchableOpacity>
-            </View>
-
-            {/* Biométricos */}
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Tus Datos Biométricos</Text>
-
-                {isNewUser && (
-                    <View style={styles.welcomeBanner}>
-                        <Text style={styles.welcomeTitle}>¡Bienvenido a NutriTrack! 🎉</Text>
-                        <Text style={styles.welcomeText}>Completa tus datos para personalizar tu experiencia nutricional.</Text>
+                ) : (
+                    <View style={[styles.proSection, { marginBottom: 15 }]}>
+                        <TouchableOpacity
+                            style={styles.proCard}
+                            onPress={() => navigation.navigate('Subscription')}
+                        >
+                            <View style={styles.proInfo}>
+                                <View style={styles.proIconCircle}>
+                                    <Zap size={24} color={colors.accent} fill={colors.accent} />
+                                </View>
+                                <View>
+                                    <Text style={styles.proTitle}>Prueba NutriTrack PRO</Text>
+                                    <Text style={styles.proStatus}>Gestionar opciones de pago ✨</Text>
+                                </View>
+                            </View>
+                            <ChevronRight size={20} color={colors.textSecondary} />
+                        </TouchableOpacity>
                     </View>
                 )}
 
-                <View style={styles.inputCard}>
-                    <View style={styles.inputRow}>
-                        <Text style={styles.inputLabel}>Género</Text>
-                        <View style={styles.toggleRow}>
-                            <TouchableOpacity
-                                style={[styles.miniTab, gender === 'male' && styles.miniTabActive]}
-                                onPress={() => setGender('male')}
-                            >
-                                <Text style={[styles.miniTabText, gender === 'male' && styles.miniTabTextActive]}>Hombre</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.miniTab, gender === 'female' && styles.miniTabActive]}
-                                onPress={() => setGender('female')}
-                            >
-                                <Text style={[styles.miniTabText, gender === 'female' && styles.miniTabTextActive]}>Mujer</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                    <View style={styles.divider} />
+                <PremiumModal
+                    visible={showPremium}
+                    onClose={() => setShowPremium(false)}
+                />
 
-                    {/* Edad - estilo moderno */}
-                    <View style={styles.bioFieldRow}>
-                        <Text style={styles.inputLabel}>Edad</Text>
-                        <View style={styles.bioInputWrapper}>
-                            <TextInput
-                                style={styles.bioTextInput}
-                                value={age}
-                                onChangeText={setAge}
-                                keyboardType="numeric"
-                                placeholder="25"
-                                placeholderTextColor={colors.textSecondary}
-                            />
-                            <Text style={styles.bioUnitBadge}>años</Text>
+                {/* Header */}
+                <View style={styles.profileHeader}>
+                    <TouchableOpacity style={styles.avatarWrapper} onPress={pickImage}>
+                        <View style={styles.avatarContainer}>
+                            {user.profileImage ? (
+                                <Image source={{ uri: user.profileImage }} style={styles.avatarImage} />
+                            ) : (
+                                <User size={50} color={colors.primary} />
+                            )}
+                            <View style={styles.cameraIconBadge}>
+                                <Camera size={14} color={colors.white} />
+                            </View>
                         </View>
-                    </View>
-                    <View style={styles.divider} />
+                    </TouchableOpacity>
 
-                    {/* Peso - estilo moderno */}
-                    <View style={styles.bioFieldRow}>
-                        <Text style={styles.inputLabel}>Peso</Text>
-                        <View style={styles.bioInputWrapper}>
-                            <TextInput
-                                style={styles.bioTextInput}
-                                value={weight}
-                                onChangeText={setWeight}
-                                keyboardType="numeric"
-                                placeholder="70.0"
-                                placeholderTextColor={colors.textSecondary}
-                            />
-                            <Text style={styles.bioUnitBadge}>kg</Text>
-                        </View>
-                    </View>
-                    <View style={styles.divider} />
+                    <TextInput
+                        style={styles.userNameInput}
+                        value={name}
+                        onChangeText={setName}
+                        placeholder="Tu Nombre"
+                        placeholderTextColor={colors.textSecondary}
+                        returnKeyType="done"
+                        onSubmitEditing={Keyboard.dismiss}
+                    />
+                    <Text style={styles.userEmail}>{user.email || 'Usuario de NutriTrack'}</Text>
 
-                    {/* Altura - estilo moderno */}
-                    <View style={styles.bioFieldRow}>
-                        <Text style={styles.inputLabel}>Altura</Text>
-                        <View style={styles.bioInputWrapper}>
-                            <TextInput
-                                style={styles.bioTextInput}
-                                value={height}
-                                onChangeText={setHeight}
-                                keyboardType="numeric"
-                                placeholder="175"
-                                placeholderTextColor={colors.textSecondary}
-                            />
-                            <Text style={styles.bioUnitBadge}>cm</Text>
-                        </View>
-                    </View>
-
-                    {/* BMI Widget */}
-                    <View style={styles.bmiWidget}>
-                        <View>
-                            <Text style={styles.bmiLabel}>Tu IMC Actual</Text>
-                            <Text style={styles.bmiValue}>{calculateBMI()}</Text>
-                        </View>
-                        <View style={[styles.bmiBadge, { backgroundColor: getBMICategory(calculateBMI()).color }]}>
-                            <Text style={styles.bmiBadgeText}>{getBMICategory(calculateBMI()).label}</Text>
-                        </View>
-                    </View>
-
-                    <View style={styles.divider} />
                     <TouchableOpacity
-                        style={styles.syncRow}
-                        onPress={handleSyncHealthConnect}
-                        disabled={isSyncing}
+                        style={[styles.saveButton, { backgroundColor: 'transparent', marginTop: 10, borderWidth: 1, borderColor: colors.danger }]}
+                        onPress={logout}
                     >
-                        <View style={styles.syncLabelContainer}>
-                            <Activity size={20} color={colors.primary} />
-                            <Text style={styles.syncLabel}>Sincronizar con Health Connect</Text>
-                        </View>
-                        {isSyncing ? (
-                            <RefreshCw size={20} color={colors.primary} />
-                        ) : (
-                            <ChevronRight size={20} color={colors.textSecondary} />
-                        )}
+                        <LogOut size={18} color={colors.danger} />
+                        <Text style={[styles.saveButtonText, { color: colors.danger }]}>Cerrar Sesión</Text>
                     </TouchableOpacity>
                 </View>
-            </View>
+
+                {/* Biométricos */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Tus Datos Biométricos</Text>
+
+                    {isNewUser && (
+                        <View style={styles.welcomeBanner}>
+                            <Text style={styles.welcomeTitle}>¡Bienvenido a NutriTrack! 🎉</Text>
+                            <Text style={styles.welcomeText}>Completa tus datos para personalizar tu experiencia nutricional.</Text>
+                        </View>
+                    )}
+
+                    <View style={styles.inputCard}>
+                        <View style={styles.inputRow}>
+                            <Text style={styles.inputLabel}>Género</Text>
+                            <View style={styles.toggleRow}>
+                                <TouchableOpacity
+                                    style={[styles.miniTab, gender === 'male' && styles.miniTabActive]}
+                                    onPress={() => setGender('male')}
+                                >
+                                    <Text style={[styles.miniTabText, gender === 'male' && styles.miniTabTextActive]}>Hombre</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.miniTab, gender === 'female' && styles.miniTabActive]}
+                                    onPress={() => setGender('female')}
+                                >
+                                    <Text style={[styles.miniTabText, gender === 'female' && styles.miniTabTextActive]}>Mujer</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                        <View style={styles.divider} />
+
+                        {/* Edad - estilo moderno */}
+                        <View style={styles.bioFieldRow}>
+                            <Text style={styles.inputLabel}>Edad</Text>
+                            <View style={styles.bioInputWrapper}>
+                                <TextInput
+                                    style={styles.bioTextInput}
+                                    value={age}
+                                    onChangeText={setAge}
+                                    keyboardType="numeric"
+                                    placeholder="25"
+                                    placeholderTextColor={colors.textSecondary}
+                                    returnKeyType="done"
+                                    onSubmitEditing={Keyboard.dismiss}
+                                />
+                                <Text style={styles.bioUnitBadge}>años</Text>
+                            </View>
+                        </View>
+                        <View style={styles.divider} />
+
+                        {/* Peso - estilo moderno */}
+                        <View style={styles.bioFieldRow}>
+                            <Text style={styles.inputLabel}>Peso</Text>
+                            <View style={styles.bioInputWrapper}>
+                                <TextInput
+                                    style={styles.bioTextInput}
+                                    value={weight}
+                                    onChangeText={setWeight}
+                                    keyboardType="numeric"
+                                    placeholder="70.0"
+                                    placeholderTextColor={colors.textSecondary}
+                                    returnKeyType="done"
+                                    onSubmitEditing={Keyboard.dismiss}
+                                />
+                                <Text style={styles.bioUnitBadge}>kg</Text>
+                            </View>
+                        </View>
+                        <View style={styles.divider} />
+
+                        {/* Altura - estilo moderno */}
+                        <View style={styles.bioFieldRow}>
+                            <Text style={styles.inputLabel}>Altura</Text>
+                            <View style={styles.bioInputWrapper}>
+                                <TextInput
+                                    style={styles.bioTextInput}
+                                    value={height}
+                                    onChangeText={setHeight}
+                                    keyboardType="numeric"
+                                    placeholder="175"
+                                    placeholderTextColor={colors.textSecondary}
+                                />
+                                <Text style={styles.bioUnitBadge}>cm</Text>
+                            </View>
+                        </View>
+
+                        {/* BMI Widget */}
+                        <View style={styles.bmiWidget}>
+                            <View>
+                                <Text style={styles.bmiLabel}>Tu IMC Actual</Text>
+                                <Text style={styles.bmiValue}>{calculateBMI()}</Text>
+                            </View>
+                            <View style={[styles.bmiBadge, { backgroundColor: getBMICategory(calculateBMI()).color }]}>
+                                <Text style={styles.bmiBadgeText}>{getBMICategory(calculateBMI()).label}</Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.divider} />
+                        <TouchableOpacity
+                            style={styles.syncRow}
+                            onPress={handleSyncHealthConnect}
+                            disabled={isSyncing}
+                        >
+                            <View style={styles.syncLabelContainer}>
+                                <Activity size={20} color={colors.primary} />
+                                <Text style={styles.syncLabel}>Sincronizar con Health Connect</Text>
+                            </View>
+                            {isSyncing ? (
+                                <RefreshCw size={20} color={colors.primary} />
+                            ) : (
+                                <ChevronRight size={20} color={colors.textSecondary} />
+                            )}
+                        </TouchableOpacity>
+                    </View>
+                </View>
 
 
-            {/* Actividad y Objetivo */}
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Actividad y Objetivo</Text>
-                <View style={styles.inputCard}>
-                    <Text style={styles.cardLabel}>Nivel de Actividad</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scrollSelector}>
+                {/* Actividad y Objetivo */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Nivel de Actividad</Text>
+                    <View style={styles.inputCard}>
                         {[
-                            { label: 'Sedentario', val: 1.2 },
-                            { label: 'Ligero', val: 1.375 },
-                            { label: 'Moderado', val: 1.55 },
-                            { label: 'Activo', val: 1.725 },
-                            { label: 'Atleta', val: 1.9 },
+                            { label: 'Sedentario', desc: 'Poco o nada de ejercicio', val: 1.2, icon: '🏠' },
+                            { label: 'Ligero', desc: '1-3 días / semana', val: 1.375, icon: '🚶' },
+                            { label: 'Moderado', desc: '3-5 días / semana', val: 1.55, icon: '🏋️' },
+                            { label: 'Activo', desc: '6-7 días / semana', val: 1.725, icon: '🏃' },
+                            { label: 'Muy Activo', desc: 'Atletas / Trabajo físico', val: 1.9, icon: '⚡' },
                         ].map(item => (
                             <TouchableOpacity
-                                key={item.val}
-                                style={[styles.choiceChip, activityLevel === item.val && styles.choiceChipActive]}
+                                key={item.label}
+                                style={[styles.activityItem, activityLevel === item.val && styles.activityItemActive]}
                                 onPress={() => setActivityLevel(item.val)}
                             >
-                                <Text style={[styles.choiceText, activityLevel === item.val && styles.choiceTextActive]}>{item.label}</Text>
+                                <View style={[styles.activityIconBox, activityLevel === item.val && styles.activityIconBoxActive]}>
+                                    <Text style={{ fontSize: 18 }}>{item.icon}</Text>
+                                </View>
+                                <View style={{ flex: 1, marginLeft: 12 }}>
+                                    <Text style={[styles.activityName, activityLevel === item.val && styles.activityNameActive]}>{item.label}</Text>
+                                    <Text style={styles.activityDesc}>{item.desc}</Text>
+                                </View>
+                                {activityLevel === item.val && <CheckCircle2 size={16} color={colors.primary} />}
                             </TouchableOpacity>
                         ))}
-                    </ScrollView>
+                    </View>
+                </View>
 
-                    <Text style={[styles.cardLabel, { marginTop: 20 }]}>Mi Objetivo</Text>
-                    <View style={styles.goalRow}>
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Objetivo Personal</Text>
+                    <View style={[styles.goalRow, { paddingHorizontal: 0 }]}>
                         {[
-                            { label: 'Perder Peso', val: 'lose' },
-                            { label: 'Mantener', val: 'maintain' },
-                            { label: 'Ganar Músculo', val: 'gain' },
+                            { label: 'Perder Grasa', val: 'lose', icon: <Flame size={18} /> },
+                            { label: 'Mantener', val: 'maintain', icon: <Target size={18} /> },
+                            { label: 'Ganar Músculo', val: 'gain', icon: <TrendingUp size={18} /> },
                         ].map(item => (
                             <TouchableOpacity
                                 key={item.val}
                                 style={[styles.goalTab, goal === item.val && styles.goalTabActive]}
                                 onPress={() => setGoal(item.val)}
                             >
-                                <Text style={[styles.goalTabText, goal === item.val && styles.goalTabTextActive]}>{item.label}</Text>
+                                <View style={{ marginBottom: 6 }}>
+                                    {React.cloneElement(item.icon, {
+                                        color: goal === item.val ? colors.primary : colors.textSecondary,
+                                        fill: goal === item.val ? (item.val === 'lose' ? colors.primary : 'transparent') : 'transparent'
+                                    })}
+                                </View>
+                                <Text style={[styles.goalTabText, goal === item.val && styles.goalTabTextActive]}>
+                                    {item.label}
+                                </Text>
                             </TouchableOpacity>
                         ))}
                     </View>
                 </View>
-            </View>
 
-            {/* Distribución de Macros Gráfica */}
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Distribución Recomendada</Text>
-                <View style={styles.chartCard}>
-                    {(() => {
-                        const nutrients = calculateNutrients();
-                        const targetCals = nutrients.goalCalories;
-                        const data = [
-                            {
-                                name: `Proteínas: ${Math.round((targetCals * (nutrients.macros.protein / 100)) / 4)}g`,
-                                population: nutrients.macros.protein,
-                                color: colors.macronutrients.protein,
-                                legendFontColor: colors.text,
-                                legendFontSize: 12,
-                            },
-                            {
-                                name: `Carbos: ${Math.round((targetCals * (nutrients.macros.carbs / 100)) / 4)}g`,
-                                population: nutrients.macros.carbs,
-                                color: colors.macronutrients.carbs,
-                                legendFontColor: colors.text,
-                                legendFontSize: 12,
-                            },
-                            {
-                                name: `Grasas: ${Math.round((targetCals * (nutrients.macros.fat / 100)) / 9)}g`,
-                                population: nutrients.macros.fat,
-                                color: colors.macronutrients.fat,
-                                legendFontColor: colors.text,
-                                legendFontSize: 12,
-                            },
-                        ];
+                {/* Preferencias Alimentarias (Ruta de Dietas Especiales) */}
+                <View style={styles.section}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                        <Leaf size={18} color={colors.primary} />
+                        <Text style={[styles.sectionTitle, { marginBottom: 0, marginLeft: 8 }]}>Preferencias Alimentarias</Text>
+                    </View>
 
-                        return (
-                            <PieChart
-                                data={data}
-                                width={width - 40}
-                                height={180}
-                                chartConfig={{
-                                    color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
-                                }}
-                                accessor={"population"}
-                                backgroundColor={"transparent"}
-                                paddingLeft={"15"}
-                                center={[10, 0]}
-                                absolute={false} // Muestra porcentajes en lugar de valores crudos
-                            />
-                        );
-                    })()}
-                    <Text style={styles.chartSummary}>
-                        Objetivo: <Text style={{ color: colors.primary, fontWeight: '800' }}>{calculateNutrients().goalCalories} kcal</Text>
-                    </Text>
+                    <View style={styles.inputCard}>
+                        <Text style={styles.cardLabel}>Tipo de Dieta</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scrollSelector}>
+                            {[
+                                { label: 'Omnívora', val: 'omnivore', icon: '🥩' },
+                                { label: 'Vegetariana', val: 'vegetarian', icon: '🥚' },
+                                { label: 'Vegana', val: 'vegan', icon: '🌱' },
+                                { label: 'Keto', val: 'keto', icon: '🥑' },
+                                { label: 'Paleo', val: 'paleo', icon: '🦴' },
+                            ].map(item => (
+                                <TouchableOpacity
+                                    key={item.val}
+                                    style={[styles.choiceChip, dietType === item.val && styles.choiceChipActive]}
+                                    onPress={() => setDietType(item.val)}
+                                >
+                                    <Text style={[styles.choiceText, dietType === item.val && styles.choiceTextActive]}>
+                                        {item.icon} {item.label}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+
+                        <Text style={[styles.cardLabel, { marginTop: 22, marginBottom: 12 }]}>Restricciones & Alergias</Text>
+                        <View style={styles.restrictionGrid}>
+                            {[
+                                { label: 'Sin Gluten (Celiaco)', val: 'celiac', icon: <Wheat size={16} /> },
+                                { label: 'Sin Lactosa', val: 'lactose', icon: <Milk size={16} /> },
+                                { label: 'Sin Frutos Secos', val: 'nuts', icon: <Plus size={16} style={{ transform: [{ rotate: '45deg' }] }} /> },
+                            ].map(item => {
+                                const isActive = restrictions.includes(item.val);
+                                return (
+                                    <TouchableOpacity
+                                        key={item.val}
+                                        style={[styles.restrictionChip, isActive && styles.restrictionChipActive]}
+                                        onPress={() => {
+                                            if (isActive) {
+                                                setRestrictions(restrictions.filter(r => r !== item.val));
+                                            } else {
+                                                setRestrictions([...restrictions, item.val]);
+                                            }
+                                        }}
+                                    >
+                                        <View style={{ marginRight: 8 }}>
+                                            {React.cloneElement(item.icon, { color: isActive ? colors.white : colors.textSecondary })}
+                                        </View>
+                                        <Text style={[styles.restrictionText, isActive && styles.restrictionTextActive]}>
+                                            {item.label}
+                                        </Text>
+                                        {isActive && <CheckCircle2 size={14} color={colors.white} style={{ marginLeft: 6 }} />}
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+                    </View>
                 </View>
-            </View>
 
-            {/* Medallas y Logros con Progreso */}
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Tus Medallas & Logros</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.badgeScroll}>
-                    <BadgeItem
-                        icon={<Award size={30} color="#FFD700" />}
-                        label="Principiante"
-                        active={meals.length >= 5}
-                        current={meals.length}
-                        total={5}
-                        desc="Haber registrado más de 5 comidas en total."
-                    />
-                    <BadgeItem
-                        icon={<Zap size={30} color="#FF9800" />}
-                        label="Racha 3 días"
-                        active={streak >= 3}
-                        current={streak}
-                        total={3}
-                        desc="Mantener el objetivo calórico durante 3 días consecutivos."
-                    />
-                    <BadgeItem
-                        icon={<Target size={30} color="#2196F3" />}
-                        label="🎯 Precisión"
-                        active={progress > 0.9 && progress <= 1.05}
-                        current={progress > 0.9 ? 1 : progress}
-                        total={1}
-                        isPercent
-                        desc="Terminar el día con una precisión del 90-100% en calorías."
-                    />
-                    <BadgeItem
-                        icon={<Flame size={30} color="#F44336" />}
-                        label="Quema-grasas"
-                        active={todayFat < 50 && todayCals > 1000}
-                        current={(todayFat < 50 && todayCals > 0) ? 1 : 0}
-                        total={1}
-                        desc="Consumir más de 1000 kcal con menos de 50g de grasa hoy."
-                    />
-                    <BadgeItem
-                        icon={<Trophy size={30} color="#10B981" />}
-                        label="Leyenda"
-                        active={streak >= 7}
-                        current={streak}
-                        total={7}
-                        desc="¡Alcanzar una racha perfecta de 7 días!"
-                    />
-                </ScrollView>
-            </View>
+                {/* Distribución de Macros Gráfica */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Distribución Recomendada</Text>
+                    <View style={styles.chartCard}>
+                        {(() => {
+                            const nutrients = calculateNutrients();
+                            const targetCals = nutrients.goalCalories;
+                            const data = [
+                                {
+                                    name: `Proteínas: ${Math.round((targetCals * (nutrients.macros.protein / 100)) / 4)}g`,
+                                    population: nutrients.macros.protein,
+                                    color: colors.macronutrients.protein,
+                                    legendFontColor: colors.text,
+                                    legendFontSize: 12,
+                                },
+                                {
+                                    name: `Carbos: ${Math.round((targetCals * (nutrients.macros.carbs / 100)) / 4)}g`,
+                                    population: nutrients.macros.carbs,
+                                    color: colors.macronutrients.carbs,
+                                    legendFontColor: colors.text,
+                                    legendFontSize: 12,
+                                },
+                                {
+                                    name: `Grasas: ${Math.round((targetCals * (nutrients.macros.fat / 100)) / 9)}g`,
+                                    population: nutrients.macros.fat,
+                                    color: colors.macronutrients.fat,
+                                    legendFontColor: colors.text,
+                                    legendFontSize: 12,
+                                },
+                            ];
+
+                            return (
+                                <PieChart
+                                    data={data}
+                                    width={width - 40}
+                                    height={180}
+                                    chartConfig={{
+                                        color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
+                                    }}
+                                    accessor={"population"}
+                                    backgroundColor={"transparent"}
+                                    paddingLeft={"15"}
+                                    center={[10, 0]}
+                                    absolute={false} // Muestra porcentajes en lugar de valores crudos
+                                />
+                            );
+                        })()}
+                        <Text style={styles.chartSummary}>
+                            Objetivo: <Text style={{ color: colors.primary, fontWeight: '800' }}>{calculateNutrients().goalCalories} kcal</Text>
+                        </Text>
+                    </View>
+                </View>
+
+                {/* Medallas y Logros con Progreso */}
+                <View style={styles.section}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                        <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Tus Medallas & Logros</Text>
+                        <TouchableOpacity
+                            style={styles.rankingBtn}
+                            onPress={() => {
+                                setShowLeaderboard(true);
+                                fetchLeaderboard();
+                            }}
+                        >
+                            <Crown size={16} color={colors.accent} fill={colors.accent} />
+                            <Text style={styles.rankingBtnText}>Ranking Global</Text>
+                        </TouchableOpacity>
+                    </View>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.badgeScroll}>
+                        <BadgeItem
+                            icon={<Award size={30} color="#FFD700" />}
+                            label="Principiante"
+                            active={meals.length >= 5}
+                            current={meals.length}
+                            total={5}
+                            desc="Haber registrado más de 5 comidas en total."
+                        />
+                        <BadgeItem
+                            icon={<Zap size={30} color="#FF9800" />}
+                            label="Racha 3 días"
+                            active={streak >= 3}
+                            current={streak}
+                            total={3}
+                            desc="Mantener el objetivo calórico durante 3 días consecutivos."
+                        />
+                        <BadgeItem
+                            icon={<Target size={30} color="#2196F3" />}
+                            label="🎯 Precisión"
+                            active={progress > 0.9 && progress <= 1.05}
+                            current={progress > 0.9 ? 1 : progress}
+                            total={1}
+                            isPercent
+                            desc="Terminar el día con una precisión del 90-100% en calorías."
+                        />
+                        <BadgeItem
+                            icon={<Flame size={30} color="#F44336" />}
+                            label="Quema-grasas"
+                            active={todayFat < 50 && todayCals > 1000}
+                            current={(todayFat < 50 && todayCals > 0) ? 1 : 0}
+                            total={1}
+                            desc="Consumir más de 1000 kcal con menos de 50g de grasa hoy."
+                        />
+                        <BadgeItem
+                            icon={<Trophy size={30} color="#10B981" />}
+                            label="Leyenda"
+                            active={streak >= 7}
+                            current={streak}
+                            total={7}
+                            desc="¡Alcanzar una racha perfecta de 7 días!"
+                        />
+                    </ScrollView>
+                </View>
 
 
-            <View style={{ height: 40 }} />
-        </ScrollView >
+                <View style={styles.versionContainer}>
+                    <Text style={styles.versionText}>NutriTrack v{appVersion}</Text>
+                </View>
+
+                <View style={{ height: 60 }} />
+            </ScrollView>
+
+            {/* Modal de Ranking Global */}
+            <Modal visible={showLeaderboard} transparent animationType="slide">
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalHeader}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                <Crown size={28} color={colors.accent} fill={colors.accent} />
+                                <Text style={styles.modalTitle}>Ranking Global</Text>
+                            </View>
+                            <TouchableOpacity onPress={() => setShowLeaderboard(false)} style={styles.modalCloseIcon}>
+                                <X size={24} color={colors.textSecondary} />
+                            </TouchableOpacity>
+                        </View>
+                        <Text style={styles.modalSubtitle}>¡Sigue sumando XP y escala hacia el top!</Text>
+
+                        {isFetchingLeaderboard ? (
+                            <View style={{ padding: 40, alignItems: 'center' }}>
+                                <ActivityIndicator size="large" color={colors.primary} />
+                            </View>
+                        ) : (
+                            <ScrollView style={{ maxHeight: 500 }} showsVerticalScrollIndicator={false}>
+                                {leaderboardData.map((lbUser, index) => {
+                                    const levelInfo = getLevelInfo(lbUser.xp);
+                                    const isCurrentUser = lbUser.id === user.uid;
+                                    return (
+                                        <View key={lbUser.id} style={[styles.rankRow, isCurrentUser && styles.rankRowCurrent]}>
+                                            <Text style={[styles.rankNumber, index < 3 && { color: colors.accent, fontSize: 22, fontWeight: '900' }]}>
+                                                #{index + 1}
+                                            </Text>
+                                            <View style={[styles.rankAvatar, { backgroundColor: isCurrentUser ? colors.primary + '20' : colors.surface }]}>
+                                                <Text style={{ fontSize: 20 }}>{levelInfo.icon}</Text>
+                                            </View>
+                                            <View style={styles.rankInfo}>
+                                                <Text style={[styles.rankName, isCurrentUser && { color: colors.primary }]}>{lbUser.name}</Text>
+                                                <Text style={styles.rankLevelDesc}>Nivel {levelInfo.level} · {levelInfo.name}</Text>
+                                            </View>
+                                            <View style={{ alignItems: 'flex-end' }}>
+                                                <Text style={[styles.rankXP, isCurrentUser && { color: colors.primary }]}>{lbUser.xp}</Text>
+                                                <Text style={styles.rankXpLabel}>XP</Text>
+                                            </View>
+                                        </View>
+                                    );
+                                })}
+                            </ScrollView>
+                        )}
+                    </View>
+                </View>
+            </Modal>
+        </>
     );
 };
 
@@ -708,6 +914,38 @@ const styles = StyleSheet.create({
     miniTabTextActive: {
         color: colors.white,
     },
+    progressText: {
+        fontSize: 10,
+        color: colors.textSecondary,
+        fontWeight: '700',
+        marginTop: 2,
+    },
+    restrictionGrid: {
+        gap: 10,
+    },
+    restrictionChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderRadius: 15,
+        backgroundColor: colors.background,
+        borderWidth: 1,
+        borderColor: colors.border,
+    },
+    restrictionChipActive: {
+        backgroundColor: colors.primary,
+        borderColor: colors.primary,
+    },
+    restrictionText: {
+        fontSize: 14,
+        color: colors.textSecondary,
+        fontWeight: '600',
+    },
+    restrictionTextActive: {
+        color: colors.white,
+        fontWeight: '700',
+    },
     cardLabel: {
         fontSize: 14,
         color: colors.textSecondary,
@@ -763,6 +1001,43 @@ const styles = StyleSheet.create({
     },
     goalTabTextActive: {
         color: colors.primary,
+    },
+    activityItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 12,
+        borderRadius: 16,
+        marginBottom: 8,
+        borderWidth: 1,
+        borderColor: 'transparent',
+    },
+    activityItemActive: {
+        backgroundColor: colors.primaryLight,
+        borderColor: colors.primary,
+    },
+    activityIconBox: {
+        width: 40,
+        height: 40,
+        borderRadius: 10,
+        backgroundColor: colors.background,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    activityIconBoxActive: {
+        backgroundColor: colors.white,
+    },
+    activityName: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: colors.text,
+    },
+    activityNameActive: {
+        color: colors.primary,
+    },
+    activityDesc: {
+        fontSize: 11,
+        color: colors.textSecondary,
     },
     summaryCard: {
         margin: 20,
@@ -979,6 +1254,115 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: colors.textSecondary,
         lineHeight: 18,
+    },
+    versionContainer: {
+        alignItems: 'flex-end',
+        paddingHorizontal: 30,
+        marginTop: 20,
+        opacity: 0.5,
+    },
+    versionText: {
+        fontSize: 12,
+        color: colors.textSecondary,
+        fontWeight: '600',
+    },
+    // Leaderboard Styles
+    rankingBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: colors.accent + '20',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 20,
+    },
+    rankingBtnText: {
+        color: colors.accent,
+        fontWeight: '800',
+        fontSize: 13,
+        marginLeft: 6,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        backgroundColor: colors.background,
+        borderTopLeftRadius: 30,
+        borderTopRightRadius: 30,
+        padding: 24,
+        maxHeight: '85%',
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    modalTitle: {
+        fontSize: 24,
+        fontWeight: '900',
+        color: colors.text,
+        marginLeft: 10,
+    },
+    modalCloseIcon: {
+        padding: 5,
+    },
+    modalSubtitle: {
+        color: colors.textSecondary,
+        fontSize: 14,
+        marginBottom: 20,
+        marginLeft: 4,
+    },
+    rankRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: colors.card,
+        padding: 16,
+        borderRadius: 16,
+        marginBottom: 10,
+    },
+    rankRowCurrent: {
+        borderColor: colors.primary,
+        borderWidth: 2,
+    },
+    rankNumber: {
+        fontSize: 18,
+        fontWeight: '800',
+        color: colors.textSecondary,
+        width: 40,
+    },
+    rankAvatar: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    rankInfo: {
+        flex: 1,
+    },
+    rankName: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: colors.text,
+        marginBottom: 4,
+    },
+    rankLevelDesc: {
+        fontSize: 13,
+        color: colors.textSecondary,
+    },
+    rankXP: {
+        fontSize: 18,
+        fontWeight: '900',
+        color: colors.accent,
+    },
+    rankXpLabel: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: colors.textSecondary,
+        textAlign: 'right',
     },
 });
 

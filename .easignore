@@ -1,0 +1,9 @@
+# Excluir archivos pesados innecesarios para la build
+Antigravity (1).exe
+node_modules/
+.expo/
+.git/
+dist/
+build/
+*.apk
+*.aab

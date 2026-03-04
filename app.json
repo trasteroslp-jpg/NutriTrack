@@ -2,10 +2,11 @@
   "expo": {
     "name": "NutriTrack",
     "slug": "nutri-track",
+    "owner": "daforg",
     "scheme": "nutritrack",
-    "version": "1.5.0",
+    "version": "1.9.3",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/Logo NutriTrack.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": false,
     "platforms": [
@@ -13,7 +14,7 @@
       "ios"
     ],
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/Logo NutriTrack.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -23,9 +24,10 @@
     },
     "android": {
       "package": "com.david.nutritrack",
-      "versionCode": 6,
+      "versionCode": 19,
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/Logo NutriTrack.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
@@ -71,6 +73,10 @@
       "eas": {
         "projectId": "db844fef-e8c3-4bdb-b7fe-de25ececa9cf"
       }
+    },
+    "runtimeVersion": "1.9.0",
+    "updates": {
+      "url": "https://u.expo.dev/db844fef-e8c3-4bdb-b7fe-de25ececa9cf"
     }
   }
 }

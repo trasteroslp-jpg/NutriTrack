@@ -1,6 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { setupDefaultReminders } from '../utils/notifications';
 import {
     onAuthStateChanged,
     signInWithEmailAndPassword,
@@ -20,12 +19,16 @@ import {
     query,
     where,
     getDocs,
+    updateDoc,
     deleteDoc,
     serverTimestamp,
+    increment,
 } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { foodCatalogue } from '../data/mockData';
 import { HealthService } from '../services/healthService';
+import { XP_ACTIONS, getLevelInfo } from '../utils/gamificationLogic';
+import { orderBy, limit } from 'firebase/firestore';
 
 const AppContext = createContext();
 
@@ -42,10 +45,15 @@ const DEFAULT_USER_PROFILE = {
     goalCalories: 2040, // Calculado para 25 años, 70kg, 170cm, male, sedentary
     macros: { protein: 25, carbs: 45, fat: 30 }, // Coincide con el objetivo 'maintain' de ProfileScreen
     dislikedFoods: [],
+    dietType: 'omnivore', // omnivore, vegetarian, vegan, keto, paleo
+    restrictions: [], // celiac, lactose, nuts, etc.
     waterGoal: 2000,
+    xp: 0,
     weightHistory: [],
     favorites: [],
     customRecipes: [],
+    showRecentSuggestions: true,
+    hiddenRecentFoodIds: [],
 };
 
 const getDateString = (date = new Date()) => date.toISOString().split('T')[0];
@@ -53,14 +61,14 @@ const getDateString = (date = new Date()) => date.toISOString().split('T')[0];
 const getMealTypeByHour = (hour) => {
     if (hour >= 6 && hour < 12) return 'Desayuno';
     if (hour >= 12 && hour < 17) return 'Almuerzo';
-    if (hour >= 17 && hour < 21) return 'Merienda';
-    if (hour >= 21 || hour < 6) return 'Cena';
+    if (hour >= 17 && hour < 20) return 'Merienda';
+    if (hour >= 20 || hour < 6) return 'Cena';
     return 'Snack';
 };
 
 export const AppProvider = ({ children }) => {
-    const [firebaseUser, setFirebaseUser] = useState(null); // usuario de Firebase Auth
-    const [user, setUser] = useState(DEFAULT_USER_PROFILE);  // perfil extendido (Firestore)
+    const [firebaseUser, setFirebaseUser] = useState(null);
+    const [user, setUser] = useState(DEFAULT_USER_PROFILE);
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [meals, setMeals] = useState([]);
@@ -68,21 +76,30 @@ export const AppProvider = ({ children }) => {
     const [streak, setStreak] = useState(0);
     const [authError, setAuthError] = useState(null);
     const [weeklyDiet, setWeeklyDiet] = useState(null);
-    const [waterIntake, setWaterIntake] = useState(0); //ml de hoy
+    const [waterIntake, setWaterIntake] = useState(0);
     const [weightHistory, setWeightHistory] = useState([]);
     const [favorites, setFavorites] = useState([]);
     const [customRecipes, setCustomRecipes] = useState([]);
     const [globalFoodCatalogue, setGlobalFoodCatalogue] = useState(foodCatalogue);
     const [isNewUser, setIsNewUser] = useState(false);
+    const [recentFoods, setRecentFoods] = useState([]);
+    const [levelUpData, setLevelUpData] = useState(null);
 
-    // ── Escuchar cambios de sesión de Firebase ──
+    // ── Escuchar cambios de sesión ──
     useEffect(() => {
+        const startupTimeout = setTimeout(() => {
+            if (isLoading) setIsLoading(false);
+        }, 6000);
+
         const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
             if (fbUser) {
                 setFirebaseUser(fbUser);
                 setIsLoggedIn(true);
-                await loadUserData(fbUser.uid);
-                // setupDefaultReminders(); // Desactivado en v1.1
+                try {
+                    await loadUserData(fbUser.uid);
+                } catch (err) {
+                    console.error("LOAD_DATA_ERROR:", err);
+                }
             } else {
                 setFirebaseUser(null);
                 setIsLoggedIn(false);
@@ -91,72 +108,161 @@ export const AppProvider = ({ children }) => {
                 setCompletedWorkouts({});
             }
             setIsLoading(false);
+            clearTimeout(startupTimeout);
         });
-        return unsubscribe;
+        return () => {
+            unsubscribe();
+            clearTimeout(startupTimeout);
+        };
     }, []);
 
-    // ── Cargar perfil y datos del usuario desde Firestore ──
+    // ── Cargar perfil y datos ──
     const loadUserData = async (uid) => {
         try {
-            // Perfil
             const profileRef = doc(db, 'users', uid);
             const profileSnap = await getDoc(profileRef);
+
             if (profileSnap.exists()) {
-                setUser({ ...DEFAULT_USER_PROFILE, ...profileSnap.data() });
+                const data = profileSnap.data();
+                // Migration
+                if (data.totalXP !== undefined && data.xp === undefined) {
+                    data.xp = data.totalXP;
+                    await updateDoc(profileRef, { xp: data.totalXP });
+                }
+
+                // Repair
+                const authUser = auth.currentUser;
+                if (authUser) {
+                    if (!data.email && authUser.email) data.email = authUser.email;
+                    if (!data.name && authUser.displayName) data.name = authUser.displayName;
+                }
+
+                const repairedProfile = { ...DEFAULT_USER_PROFILE, ...data };
+                setUser(repairedProfile);
+
+                if ((!profileSnap.data().email && data.email) || (!profileSnap.data().name && data.name)) {
+                    await setDoc(profileRef, { email: data.email, name: data.name }, { merge: true });
+                }
+
+                // Sync public profile for leaderboard
+                await setDoc(doc(db, 'leaderboard_profiles', uid), {
+                    name: data.name || 'Héroe NutriTrack',
+                    xp: data.xp || 0,
+                    profileImage: data.profileImage || null,
+                }, { merge: true }).catch(e => console.warn('Public sync:', e.message));
+
+            } else {
+                const authUser = auth.currentUser;
+                const newProfile = {
+                    ...DEFAULT_USER_PROFILE,
+                    email: authUser?.email || '',
+                    name: authUser?.displayName || 'Usuario',
+                };
+                setUser(newProfile);
+                await setDoc(profileRef, newProfile, { merge: true });
+
+                // Sync new user public profile
+                await setDoc(doc(db, 'leaderboard_profiles', uid), {
+                    name: newProfile.name,
+                    xp: 0,
+                    profileImage: null,
+                }, { merge: true }).catch(e => console.warn('Public sync new:', e.message));
             }
 
-            // Comidas
-            const mealsRef = collection(db, 'users', uid, 'meals');
-            const mealsSnap = await getDocs(mealsRef);
-            const loadedMeals = mealsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-            loadedMeals.sort((a, b) => (b.date > a.date ? 1 : -1));
-            setMeals(loadedMeals);
-
-            // Entrenamientos completados (guardados localmente por uid)
-            const storedTraining = await AsyncStorage.getItem(`@training_${uid}`);
-            if (storedTraining) setCompletedWorkouts(JSON.parse(storedTraining));
-
-            // Cargar Agua, Peso, Favoritos y Recetas (Firebase o local como fallback)
-            const extraDataRef = doc(db, 'users', uid, 'extra', 'health');
-            const extraSnap = await getDoc(extraDataRef);
-            if (extraSnap.exists()) {
-                const data = extraSnap.data();
-                setWeightHistory(data.weightHistory || []);
-                setFavorites(data.favorites || []);
-                setCustomRecipes(data.customRecipes || []);
-
-                // Agua es diaria
-                const today = getDateString();
-                if (data.lastWaterUpdate === today) {
-                    setWaterIntake(data.waterIntake || 0);
-                } else {
-                    setWaterIntake(0);
+            // One-time admin migration: populate leaderboard_profiles for ALL users
+            const currentEmail = auth.currentUser?.email;
+            if (currentEmail === 'daforg@hotmail.com') {
+                try {
+                    const migrated = await AsyncStorage.getItem('leaderboard_migrated');
+                    if (!migrated) {
+                        console.log('🔄 Admin migration: populating leaderboard_profiles...');
+                        const allUsersSnap = await getDocs(collection(db, 'users'));
+                        for (const userDoc of allUsersSnap.docs) {
+                            const ud = userDoc.data();
+                            await setDoc(doc(db, 'leaderboard_profiles', userDoc.id), {
+                                name: ud.name || 'Héroe NutriTrack',
+                                xp: ud.xp || 0,
+                                profileImage: ud.profileImage || null,
+                            }, { merge: true });
+                        }
+                        await AsyncStorage.setItem('leaderboard_migrated', 'true');
+                        console.log(`✅ Migrated ${allUsersSnap.docs.length} users to leaderboard_profiles`);
+                    }
+                } catch (migErr) {
+                    console.warn('Migration warning:', migErr.message);
                 }
             }
 
-            try {
-                // Cargar Catálogo Global extendido (opcional: desde una colección compartida)
-                const globalRef = collection(db, 'global_foods');
-                const globalSnap = await getDocs(globalRef);
-                if (!globalSnap.empty) {
-                    const cloudFoods = globalSnap.docs.map(d => ({ ...d.data(), id: d.id }));
-                    setGlobalFoodCatalogue([...foodCatalogue, ...cloudFoods]);
-                }
-            } catch (globalError) {
-                console.warn('No se pudo cargar el catálogo global (posible falta de permisos):', globalError.message);
-                // El catálogo se queda con los datos por defecto (foodCatalogue)
-            }
+            // Carga secundaria
+            const loadSecondaryData = async () => {
+                try {
+                    const mealsRef = collection(db, 'users', uid, 'meals');
+                    const mealsSnap = await getDocs(mealsRef);
+                    const loadedMeals = mealsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+                    loadedMeals.sort((a, b) => (b.date > a.date ? 1 : -1));
+                    setMeals(loadedMeals);
 
+                    const storedTraining = await AsyncStorage.getItem(`@training_${uid}`);
+                    if (storedTraining) setCompletedWorkouts(JSON.parse(storedTraining));
+
+                    const extraDataRef = doc(db, 'users', uid, 'extra', 'health');
+                    const extraSnap = await getDoc(extraDataRef);
+                    if (extraSnap.exists()) {
+                        const data = extraSnap.data();
+                        setWeightHistory(data.weightHistory || []);
+                        setFavorites(data.favorites || []);
+                        setCustomRecipes(data.customRecipes || []);
+                        setRecentFoods(data.recentFoods || []);
+
+                        const today = getDateString();
+                        if (data.lastWaterUpdate === today) setWaterIntake(data.waterIntake || 0);
+                    }
+
+                    const globalRef = collection(db, 'global_foods');
+                    const globalSnap = await getDocs(globalRef);
+                    if (!globalSnap.empty) {
+                        const cloudFoods = globalSnap.docs.map(d => ({ ...d.data(), id: d.id }));
+                        setGlobalFoodCatalogue([...foodCatalogue, ...cloudFoods]);
+                    }
+
+                    // Check Daily Login XP
+                    const today = getDateString();
+                    if (profileSnap.data()?.lastLoginDate !== today) {
+                        await addXP(XP_ACTIONS.DAILY_LOGIN);
+                        await updateUser({ lastLoginDate: today });
+                    }
+                } catch (e) {
+                    console.warn('Secondary data load warning:', e.message);
+                }
+            };
+            loadSecondaryData();
         } catch (e) {
-            console.error('Error loading user data:', e);
+            console.error('CRITICAL_LOAD_ERROR:', e);
         }
     };
 
-    // ── Calcular racha ──
-    useEffect(() => {
-        if (meals.length > 0) calculateStreak();
-    }, [meals]);
+    // ── Gamification ──
+    const addXP = async (points) => {
+        setUser(prev => {
+            const currentXP = prev.xp || 0;
+            const newXP = currentXP + points;
+            const oldInfo = getLevelInfo(currentXP);
+            const newInfo = getLevelInfo(newXP);
 
+            if (newInfo.level > oldInfo.level) setLevelUpData(newInfo);
+
+            if (firebaseUser) {
+                setDoc(doc(db, 'users', firebaseUser.uid), { xp: newXP }, { merge: true })
+                    .catch(e => console.error('Error saving XP:', e));
+                // Sync XP to public leaderboard
+                setDoc(doc(db, 'leaderboard_profiles', firebaseUser.uid), { xp: newXP }, { merge: true })
+                    .catch(e => console.warn('Leaderboard XP sync:', e.message));
+            }
+            return { ...prev, xp: newXP };
+        });
+    };
+
+    // ── Calcular racha ──
     const calculateStreak = () => {
         const mealsByDate = {};
         meals.forEach(m => { mealsByDate[m.date] = (mealsByDate[m.date] || 0) + m.calories; });
@@ -164,38 +270,53 @@ export const AppProvider = ({ children }) => {
         const yesterday = getDateString(new Date(Date.now() - 86400000));
         let currentStreak = 0;
         let checkDate = new Date();
+
+        const isGoalMet = (cals) => cals > 0 && Math.abs(cals - user.goalCalories) <= (user.goalCalories * 0.1);
+
         const todayCals = mealsByDate[today] || 0;
-        if (!(todayCals > 0 && todayCals <= user.goalCalories)) {
+        if (!isGoalMet(todayCals)) {
             const yesterdayCals = mealsByDate[yesterday] || 0;
-            if (yesterdayCals === 0 || yesterdayCals > user.goalCalories) return setStreak(0);
+            if (yesterdayCals === 0 || !isGoalMet(yesterdayCals)) return setStreak(0);
             checkDate.setDate(checkDate.getDate() - 1);
         }
-        while (true) {
+
+        let safety = 0;
+        while (safety < 3000) {
+            safety++;
             const dStr = getDateString(checkDate);
             const dailyCals = mealsByDate[dStr] || 0;
-            if (dailyCals > 0 && dailyCals <= user.goalCalories) {
+            if (isGoalMet(dailyCals)) {
                 currentStreak++;
                 checkDate.setDate(checkDate.getDate() - 1);
             } else break;
         }
         setStreak(currentStreak);
+
+        if (isGoalMet(todayCals) && user.lastGoalXpDate !== today) {
+            addXP(XP_ACTIONS.COMPLETE_DAILY_GOAL);
+            updateUser({ lastGoalXpDate: today });
+        }
+
+        if (currentStreak === 7 && user.lastStreakXP !== 7) {
+            addXP(XP_ACTIONS.STREAK_7_DAYS);
+            updateUser({ lastStreakXP: 7 });
+        } else if (currentStreak === 30 && user.lastStreakXP !== 30) {
+            addXP(XP_ACTIONS.STREAK_30_DAYS);
+            updateUser({ lastStreakXP: 30 });
+        }
     };
 
-    // ── AUTH: Registro con email/contraseña ──
+    useEffect(() => {
+        if (meals.length > 0) calculateStreak();
+    }, [meals]);
+
+    // ── AUTH ──
     const registerWithEmail = async (email, password, name) => {
         setAuthError(null);
         try {
             const cred = await createUserWithEmailAndPassword(auth, email, password);
             await updateProfile(cred.user, { displayName: name });
-
-            // Crear perfil en Firestore
-            const newProfile = {
-                ...DEFAULT_USER_PROFILE,
-                name,
-                email,
-                isPro: false,
-                createdAt: serverTimestamp(),
-            };
+            const newProfile = { ...DEFAULT_USER_PROFILE, name, email, isPro: false, createdAt: serverTimestamp() };
             await setDoc(doc(db, 'users', cred.user.uid), newProfile);
             setUser(newProfile);
             setIsNewUser(true);
@@ -207,7 +328,6 @@ export const AppProvider = ({ children }) => {
         }
     };
 
-    // ── AUTH: Login con email/contraseña ──
     const loginWithEmail = async (email, password) => {
         setAuthError(null);
         try {
@@ -220,109 +340,192 @@ export const AppProvider = ({ children }) => {
         }
     };
 
-    // ── AUTH: Recuperar contraseña ──
     const resetPassword = async (email) => {
-        console.log(`DEBUG: Intentando resetear contraseña para: ${email}`);
         try {
             await sendPasswordResetEmail(auth, email);
-            console.log("DEBUG: Firebase dice que el correo fue enviado con éxito");
             return { success: true };
         } catch (e) {
-            console.error("DEBUG: Error de Firebase al enviar correo:", e.code, e.message);
-            const msg = getAuthErrorMessage(e.code);
-            return { success: false, error: msg };
+            return { success: false, error: getAuthErrorMessage(e.code) };
         }
     };
 
-
-    // ── AUTH: Logout ──
     const logout = async () => {
         try {
             await signOut(auth);
-            // Limpiar todos los datos del usuario para evitar fugas entre cuentas
             setWeightHistory([]);
             setFavorites([]);
             setCustomRecipes([]);
             setWaterIntake(0);
             setStreak(0);
             setIsNewUser(false);
-        } catch (e) {
-            console.error('Error logging out:', e);
-        }
+        } catch (e) { console.error('Logout error:', e); }
     };
 
-    // ── MEALS: Añadir comida ──
+    // ── MEALS ──
     const addMeal = async (newMeal) => {
         if (!firebaseUser) return;
-
         const now = new Date();
-        const hour = now.getHours();
         const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
         const mealData = {
             ...newMeal,
             date: getDateString(now),
             time: timeStr,
-            type: newMeal.type || getMealTypeByHour(hour),
+            type: newMeal.type || getMealTypeByHour(now.getHours()),
             createdAt: serverTimestamp(),
         };
         try {
-            const docRef = await addDoc(
-                collection(db, 'users', firebaseUser.uid, 'meals'),
-                mealData
-            );
+            const docRef = await addDoc(collection(db, 'users', firebaseUser.uid, 'meals'), mealData);
             setMeals(prev => [{ id: docRef.id, ...mealData }, ...prev]);
-        } catch (e) {
-            console.error('Error adding meal:', e);
+
+            const today = getDateString();
+            const todayMeals = meals.filter(m => m.date === today);
+            if (todayMeals.length < 15) addXP(XP_ACTIONS.LOG_MEAL);
+
+            addRecentFood({
+                title: newMeal.title,
+                calories: newMeal.calories,
+                protein: newMeal.protein || 0,
+                carbs: newMeal.carbs || 0,
+                fat: newMeal.fat || 0,
+                grams: newMeal.grams || 100,
+                mealType: mealData.type,
+                lastUsed: new Date().toISOString(),
+                useCount: 1,
+            });
+        } catch (e) { console.error('Add meal error:', e); }
+    };
+
+    const addRecentFood = async (foodEntry) => {
+        setRecentFoods(prev => {
+            const existing = prev.findIndex(f => f.title?.toLowerCase() === foodEntry.title?.toLowerCase());
+            let updated;
+            if (existing >= 0) {
+                const item = { ...prev[existing], lastUsed: new Date().toISOString(), useCount: (prev[existing].useCount || 1) + 1 };
+                updated = [item, ...prev.filter((_, i) => i !== existing)];
+            } else {
+                updated = [foodEntry, ...prev];
+            }
+            return updated.slice(0, 25);
+        });
+        if (firebaseUser) {
+            try {
+                const updatedRecents = [foodEntry, ...recentFoods.filter(f => f.title?.toLowerCase() !== foodEntry.title?.toLowerCase())].slice(0, 25);
+                await setDoc(doc(db, 'users', firebaseUser.uid, 'extra', 'health'), { recentFoods: updatedRecents }, { merge: true });
+            } catch (e) { console.warn('Save recents error:', e); }
         }
     };
 
-    // ── MEALS: Eliminar comida ──
+    const dismissRecentFood = async (foodTitle) => {
+        const currentHidden = user.hiddenRecentFoodIds || [];
+        if (!currentHidden.includes(foodTitle)) {
+            await updateUser({ hiddenRecentFoodIds: [...currentHidden, foodTitle] });
+        }
+    };
+
     const deleteMeal = async (mealId) => {
         if (!firebaseUser) return;
         try {
+            const mealToDelete = meals.find(m => m.id === mealId);
             await deleteDoc(doc(db, 'users', firebaseUser.uid, 'meals', mealId));
             setMeals(prev => prev.filter(m => m.id !== mealId));
-        } catch (e) {
-            console.error('Error deleting meal:', e);
-        }
+            if (mealToDelete) {
+                const createdTime = mealToDelete.createdAt?.toDate ? mealToDelete.createdAt.toDate() : new Date();
+                if (new Date() - createdTime < 3600000) addXP(-XP_ACTIONS.LOG_MEAL);
+            }
+        } catch (e) { console.error('Delete meal error:', e); }
     };
 
-    // ── MEALS: Actualizar comida ──
     const updateMeal = async (mealId, updates) => {
         if (!firebaseUser) return;
         try {
             await setDoc(doc(db, 'users', firebaseUser.uid, 'meals', mealId), updates, { merge: true });
             setMeals(prev => prev.map(m => m.id === mealId ? { ...m, ...updates } : m));
-        } catch (e) {
-            console.error('Error updating meal:', e);
-        }
+        } catch (e) { console.error('Update meal error:', e); }
     };
 
-    // ── PERFIL: Actualizar datos del usuario ──
+    // ── PERFIL ──
     const updateUser = async (updates) => {
-        const updated = { ...user, ...updates };
-        setUser(updated);
+        setUser(prev => ({ ...prev, ...updates }));
         if (firebaseUser) {
             try {
-                await setDoc(doc(db, 'users', firebaseUser.uid), updated, { merge: true });
-            } catch (e) {
-                console.error('Error updating user:', e);
-            }
+                await setDoc(doc(db, 'users', firebaseUser.uid), updates, { merge: true });
+                // Mirror public fields to leaderboard
+                const publicFields = {};
+                if (updates.name !== undefined) publicFields.name = updates.name;
+                if (updates.xp !== undefined) publicFields.xp = updates.xp;
+                if (updates.profileImage !== undefined) publicFields.profileImage = updates.profileImage;
+                if (Object.keys(publicFields).length > 0) {
+                    await setDoc(doc(db, 'leaderboard_profiles', firebaseUser.uid), publicFields, { merge: true });
+                }
+            } catch (e) { console.error('Update user error:', e); }
         }
     };
 
-    // ── ENTRENAMIENTOS ──
-    const toggleWorkoutCompletion = async (workoutId) => {
+    // ── IA TRACKING ──
+    const trackAIUsage = async (featureName, baseTokens, generatedTokens = 0) => {
         if (!firebaseUser) return;
-        const today = getDateString();
-        const dayWorkouts = completedWorkouts[today] || [];
-        const newDayWorkouts = dayWorkouts.includes(workoutId)
-            ? dayWorkouts.filter(id => id !== workoutId)
-            : [...dayWorkouts, workoutId];
-        const updated = { ...completedWorkouts, [today]: newDayWorkouts };
-        setCompletedWorkouts(updated);
-        await AsyncStorage.setItem(`@training_${firebaseUser.uid}`, JSON.stringify(updated));
+        try {
+            const totalTokens = baseTokens + generatedTokens;
+            await setDoc(doc(db, 'users', firebaseUser.uid), {
+                aiTokensUsed: increment(totalTokens),
+                aiRequestsCount: increment(1)
+            }, { merge: true });
+            await addDoc(collection(db, 'users', firebaseUser.uid, 'ai_logs'), {
+                feature: featureName,
+                tokens: totalTokens,
+                timestamp: serverTimestamp()
+            });
+        } catch (e) { console.error("Track AI usage error:", e); }
+    };
+
+    // ── HEALTH & EXTRA ──
+    const logWeight = async (weight) => {
+        const newEntry = { date: getDateString(), weight: parseFloat(weight) };
+        const updatedHistory = [...weightHistory, newEntry].sort((a, b) => b.date > a.date ? 1 : -1);
+        setWeightHistory(updatedHistory);
+        await updateUser({ weight: parseFloat(weight) });
+        if (firebaseUser) {
+            await setDoc(doc(db, 'users', firebaseUser.uid, 'extra', 'health'), { weightHistory: updatedHistory }, { merge: true });
+        }
+    };
+
+    const addWater = async (amount) => {
+        const newTotal = Math.max(0, waterIntake + amount);
+        setWaterIntake(newTotal);
+        if (firebaseUser) {
+            await setDoc(doc(db, 'users', firebaseUser.uid, 'extra', 'health'), {
+                waterIntake: newTotal,
+                lastWaterUpdate: getDateString()
+            }, { merge: true });
+        }
+    };
+
+    const toggleFavorite = async (food) => {
+        let updated;
+        const isFav = favorites.find(f => f.id === food.id);
+        if (isFav) updated = favorites.filter(f => f.id !== food.id);
+        else updated = [...favorites, food];
+        setFavorites(updated);
+        if (firebaseUser) {
+            await setDoc(doc(db, 'users', firebaseUser.uid, 'extra', 'health'), { favorites: updated }, { merge: true });
+        }
+    };
+
+    // ── RECIPES ──
+    const addCustomRecipe = async (recipe) => {
+        const updated = [...customRecipes, { ...recipe, id: Date.now().toString() }];
+        setCustomRecipes(updated);
+        if (firebaseUser) {
+            await setDoc(doc(db, 'users', firebaseUser.uid, 'extra', 'health'), { customRecipes: updated }, { merge: true });
+        }
+    };
+
+    const deleteCustomRecipe = async (recipeId) => {
+        const updated = customRecipes.filter(r => r.id !== recipeId);
+        setCustomRecipes(updated);
+        if (firebaseUser) {
+            await setDoc(doc(db, 'users', firebaseUser.uid, 'extra', 'health'), { customRecipes: updated }, { merge: true });
+        }
     };
 
     // ── STATS ──
@@ -349,7 +552,6 @@ export const AppProvider = ({ children }) => {
         }));
     };
 
-    // ── Mensajes de error en español ──
     const getAuthErrorMessage = (code) => {
         const errors = {
             'auth/email-already-in-use': 'Este correo ya está registrado.',
@@ -366,133 +568,34 @@ export const AppProvider = ({ children }) => {
 
     return (
         <AppContext.Provider value={{
-            // Auth
-            firebaseUser,
-            isLoggedIn,
-            isLoading,
-            authError,
-            setAuthError,
-            loginWithEmail,
-            registerWithEmail,
-            resetPassword,
-            logout,
-            // User
-            user,
+            firebaseUser, user, isLoading, isLoggedIn, authError, setAuthError,
+            loginWithEmail, registerWithEmail, resetPassword, logout,
+            meals, addMeal, deleteMeal, updateMeal, getStatsForRange,
+            streak, waterIntake, addWater, weightHistory, logWeight,
+            favorites, toggleFavorite,
+            recentFoods, dismissRecentFood,
+            customRecipes, addCustomRecipe, deleteCustomRecipe,
+            levelUpData, setLevelUpData, addXP,
+            trackAIUsage,
             updateUser,
-            isNewUser,
-            setIsNewUser,
-            // Meals
-            meals,
-            addMeal,
-            deleteMeal,
-            updateMeal,
-            // Stats
-            getStatsForRange,
-            streak,
-            // Training
-            completedWorkouts,
-            toggleWorkoutCompletion,
-            // Diets
-            weeklyDiet,
-            setWeeklyDiet,
-            toggleDislikedFood: async (foodName) => {
-                const currentDisliked = user.dislikedFoods || [];
-                const updated = currentDisliked.includes(foodName)
-                    ? currentDisliked.filter(f => f !== foodName)
-                    : [...currentDisliked, foodName];
-                await updateUser({ dislikedFoods: updated });
+            globalFoodCatalogue,
+            addToGlobalCatalogue: async (food) => {
+                if (globalFoodCatalogue.find(f => (f.name.toLowerCase() === food.name.toLowerCase()) || (food.barcode && f.barcode === food.barcode))) return;
+                const newFood = { ...food, id: food.barcode ? `bar_${food.barcode}` : `gen_${Date.now()}`, isGenerated: true, contributedBy: firebaseUser?.uid || 'anonymous' };
+                setGlobalFoodCatalogue(prev => [...prev, newFood]);
+                try { await addDoc(collection(db, 'global_foods'), { ...newFood, createdAt: serverTimestamp() }); } catch (e) { console.error("Global catalogue error:", e); }
             },
-            // Health & Extra
-            waterIntake,
-            addWater: async (amount) => {
-                const newTotal = Math.max(0, waterIntake + amount);
-                setWaterIntake(newTotal);
-                if (firebaseUser) {
-                    await setDoc(doc(db, 'users', firebaseUser.uid, 'extra', 'health'), {
-                        waterIntake: newTotal,
-                        lastWaterUpdate: getDateString()
-                    }, { merge: true });
-                }
-            },
-            weightHistory,
-            logWeight: async (weight) => {
-                const newEntry = { date: getDateString(), weight: parseFloat(weight) };
-                const updatedHistory = [...weightHistory, newEntry].sort((a, b) => b.date > a.date ? 1 : -1);
-                setWeightHistory(updatedHistory);
-                await updateUser({ weight: parseFloat(weight) }); // Actualizamos peso actual en perfil
-                if (firebaseUser) {
-                    await setDoc(doc(db, 'users', firebaseUser.uid, 'extra', 'health'), {
-                        weightHistory: updatedHistory
-                    }, { merge: true });
-                }
-            },
-            favorites,
-            toggleFavorite: async (food) => {
-                let updated;
-                const isFav = favorites.find(f => f.id === food.id);
-                if (isFav) {
-                    updated = favorites.filter(f => f.id !== food.id);
-                } else {
-                    updated = [...favorites, food];
-                }
-                setFavorites(updated);
-                if (firebaseUser) {
-                    await setDoc(doc(db, 'users', firebaseUser.uid, 'extra', 'health'), {
-                        favorites: updated
-                    }, { merge: true });
-                }
-            },
-            customRecipes,
-            addCustomRecipe: async (recipe) => {
-                const updated = [...customRecipes, { ...recipe, id: Date.now().toString() }];
-                setCustomRecipes(updated);
-                if (firebaseUser) {
-                    await setDoc(doc(db, 'users', firebaseUser.uid, 'extra', 'health'), {
-                        customRecipes: updated
-                    }, { merge: true });
-                }
-            },
-            // Health Connect Sync
             syncWeightFromHealth: async () => {
                 const isAvailable = await HealthService.checkAvailability();
                 if (!isAvailable) return { success: false, error: 'Health Connect no disponible' };
-
                 const hasPermissions = await HealthService.requestWeightPermissions();
                 if (!hasPermissions) return { success: false, error: 'Permisos denegados' };
-
                 const weightData = await HealthService.getLatestWeight();
                 if (weightData) {
-                    // Actualizar en la app y base de datos
                     await logWeight(weightData.weight);
                     return { success: true, weight: weightData.weight };
                 }
                 return { success: false, error: 'No se encontraron datos de peso recientes' };
-            },
-            // Catálogo Global
-            globalFoodCatalogue,
-            addToGlobalCatalogue: async (food) => {
-                // Evitar duplicados simples por nombre
-                if (globalFoodCatalogue.find(f => f.name.toLowerCase() === food.name.toLowerCase())) return;
-
-                const newFood = {
-                    ...food,
-                    id: `gen_${Date.now()}`,
-                    isGenerated: true,
-                    contributedBy: firebaseUser?.uid || 'anonymous'
-                };
-
-                // Actualizar estado local
-                setGlobalFoodCatalogue(prev => [...prev, newFood]);
-
-                // Guardar en Firestore para que otros se beneficien (Colección Compartida)
-                try {
-                    await addDoc(collection(db, 'global_foods'), {
-                        ...newFood,
-                        createdAt: serverTimestamp()
-                    });
-                } catch (e) {
-                    console.error("Error contributing to global food database:", e);
-                }
             }
         }}>
             {children}
