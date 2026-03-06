@@ -574,6 +574,14 @@ export const AppProvider = ({ children }) => {
         }
     };
 
+    const toggleDislikedFood = async (food) => {
+        const current = user.dislikedFoods || [];
+        const updated = current.includes(food)
+            ? current.filter(f => f !== food)
+            : [...current, food];
+        await updateUser({ dislikedFoods: updated });
+    };
+
     // ── RECIPES ──
     const addCustomRecipe = async (recipe) => {
         const updated = [...customRecipes, { ...recipe, id: Date.now().toString() }];
@@ -640,6 +648,7 @@ export const AppProvider = ({ children }) => {
             customRecipes, addCustomRecipe, deleteCustomRecipe,
             levelUpData, setLevelUpData, addXP,
             trackAIUsage,
+            weeklyDiet, setWeeklyDiet, toggleDislikedFood,
             updateUser,
             globalFoodCatalogue,
             addToGlobalCatalogue: async (food) => {

@@ -136,259 +136,260 @@ const CameraScanner = ({ visible, onClose }) => {
         setIsAnalyzing(true);
         setProcessingStep(1); // Identifying
 
-        // Obtener usuario actual de forma segura
-        const currentUser = auth.currentUser;
-        let token = "";
-        if (currentUser) {
-            token = await currentUser.getIdToken(true); // Forzar actualización para evitar tokens caducados
-        } else {
-            throw new Error("Sesión no válida. Por favor, reinicia sesión.");
+        try {
+            // Obtener usuario actual de forma segura
+            const currentUser = auth.currentUser;
+            let token = "";
+            if (currentUser) {
+                token = await currentUser.getIdToken(true); // Forzar actualización para evitar tokens caducados
+            } else {
+                throw new Error("Sesión no válida. Por favor, reinicia sesión.");
+            }
+
+            const response = await fetch(CLOUD_FUNCTION_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    type: 'image',
+                    mimeType: 'image/jpeg',
+                    data: base64Data
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.error) {
+                const errorMsg = data.details ? `${data.error}: ${data.details} ` : data.error;
+                throw new Error(errorMsg || "Error en el servidor de análisis");
+            }
+
+            if (data.usage) {
+                trackAIUsage('CameraScanner', data.usage.promptTokens, data.usage.responseTokens);
+            }
+
+            const items = data.result;
+            if (!Array.isArray(items) || items.length === 0) {
+                throw new Error("La IA no pudo identificar alimentos en esta imagen.");
+            }
+
+            setProcessingStep(2); // Calculating
+
+            const withRatios = items.map(item => ({
+                ...item,
+                originalWeight: item.weight || 100,
+                calPerGram: item.calories / (item.weight || 100),
+                protPerGram: item.protein / (item.weight || 100),
+                carbsPerGram: item.carbs / (item.weight || 100),
+                fatPerGram: item.fat / (item.weight || 100),
+            }));
+
+            setAnalysisResult(withRatios);
+            Vibration.vibrate([0, 100, 50, 100]); // Victory haptic pattern
+        } catch (e) {
+            console.error(e);
+            Alert.alert("Error de IA", e.message || "No se pudo conectar con el servicio de análisis real.");
+            setAnalysisResult(null);
+            setCapturedImage(null);
+        } finally {
+            setIsAnalyzing(false);
+            setProcessingStep(0);
         }
+    };
 
-        const response = await fetch(CLOUD_FUNCTION_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-                type: 'image',
-                mimeType: 'image/jpeg',
-                data: base64Data
-            })
-        });
-
-        const data = await response.json();
-
-        if (data.error) {
-            const errorMsg = data.details ? `${data.error}: ${data.details} ` : data.error;
-            throw new Error(errorMsg || "Error en el servidor de análisis");
-        }
-
-        if (data.usage) {
-            trackAIUsage('CameraScanner', data.usage.promptTokens, data.usage.responseTokens);
-        }
-
-        const items = data.result;
-        if (!Array.isArray(items) || items.length === 0) {
-            throw new Error("La IA no pudo identificar alimentos en esta imagen.");
-        }
-
-        setProcessingStep(2); // Calculating
-
-        const withRatios = items.map(item => ({
-            ...item,
-            originalWeight: item.weight || 100,
-            calPerGram: item.calories / (item.weight || 100),
-            protPerGram: item.protein / (item.weight || 100),
-            carbsPerGram: item.carbs / (item.weight || 100),
-            fatPerGram: item.fat / (item.weight || 100),
+    const updateItemWeight = (index, newWeightStr) => {
+        const newWeight = parseFloat(newWeightStr) || 0;
+        setAnalysisResult(prev => prev.map((item, i) => {
+            if (i !== index) return item;
+            return {
+                ...item,
+                weight: newWeight,
+                calories: Math.round(newWeight * item.calPerGram),
+                protein: Math.round(newWeight * item.protPerGram * 10) / 10,
+                carbs: Math.round(newWeight * item.carbsPerGram * 10) / 10,
+                fat: Math.round(newWeight * item.fatPerGram * 10) / 10,
+            };
         }));
+    };
 
-        setAnalysisResult(withRatios);
-        Vibration.vibrate([0, 100, 50, 100]); // Victory haptic pattern
-    } catch (e) {
-        console.error(e);
-        Alert.alert("Error de IA", e.message || "No se pudo conectar con el servicio de análisis real.");
-        setAnalysisResult(null);
+    const confirmAndAdd = () => {
+        analysisResult.forEach(item => {
+            addMeal({
+                title: item.name,
+                type: 'IA Vision',
+                calories: item.calories,
+                protein: item.protein,
+                carbs: item.carbs,
+                fat: item.fat,
+                grams: item.weight
+            });
+
+            const ratio = 100 / (item.weight || 100);
+            addToGlobalCatalogue({
+                name: item.name,
+                calories: Math.round(item.calories * ratio),
+                protein: Math.round(item.protein * ratio),
+                carbs: Math.round(item.carbs * ratio),
+                fat: Math.round(item.fat * ratio),
+                category: 'IA Vision'
+            });
+        });
+        Alert.alert('¡Éxito!', 'Alimentos añadidos al diario.');
+        resetScanner();
+        onClose();
+    };
+
+    const resetScanner = () => {
         setCapturedImage(null);
-    } finally {
+        setAnalysisResult(null);
         setIsAnalyzing(false);
         setProcessingStep(0);
-    }
-};
+    };
 
-const updateItemWeight = (index, newWeightStr) => {
-    const newWeight = parseFloat(newWeightStr) || 0;
-    setAnalysisResult(prev => prev.map((item, i) => {
-        if (i !== index) return item;
-        return {
-            ...item,
-            weight: newWeight,
-            calories: Math.round(newWeight * item.calPerGram),
-            protein: Math.round(newWeight * item.protPerGram * 10) / 10,
-            carbs: Math.round(newWeight * item.carbsPerGram * 10) / 10,
-            fat: Math.round(newWeight * item.fatPerGram * 10) / 10,
-        };
-    }));
-};
-
-const confirmAndAdd = () => {
-    analysisResult.forEach(item => {
-        addMeal({
-            title: item.name,
-            type: 'IA Vision',
-            calories: item.calories,
-            protein: item.protein,
-            carbs: item.carbs,
-            fat: item.fat,
-            grams: item.weight
-        });
-
-        const ratio = 100 / (item.weight || 100);
-        addToGlobalCatalogue({
-            name: item.name,
-            calories: Math.round(item.calories * ratio),
-            protein: Math.round(item.protein * ratio),
-            carbs: Math.round(item.carbs * ratio),
-            fat: Math.round(item.fat * ratio),
-            category: 'IA Vision'
-        });
+    const translateY = scanLineAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0, SCREEN_WIDTH * 0.75],
     });
-    Alert.alert('¡Éxito!', 'Alimentos añadidos al diario.');
-    resetScanner();
-    onClose();
-};
 
-const resetScanner = () => {
-    setCapturedImage(null);
-    setAnalysisResult(null);
-    setIsAnalyzing(false);
-    setProcessingStep(0);
-};
+    return (
+        <Modal visible={visible} animationType="fade" transparent={false}>
+            <View style={styles.container}>
+                {!capturedImage ? (
+                    <View style={styles.cameraContainer}>
+                        <CameraView style={styles.camera} ref={cameraRef} />
 
-const translateY = scanLineAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, SCREEN_WIDTH * 0.75],
-});
+                        {/* Scanner UI */}
+                        <View style={styles.overlay} pointerEvents="none">
+                            <Animated.View style={[styles.scanTarget, { transform: [{ scale: cornerPulseAnim }] }]}>
+                                <View style={[styles.corner, styles.topLeft]} />
+                                <View style={[styles.corner, styles.topRight]} />
+                                <View style={[styles.corner, styles.bottomLeft]} />
+                                <View style={[styles.corner, styles.bottomRight]} />
 
-return (
-    <Modal visible={visible} animationType="fade" transparent={false}>
-        <View style={styles.container}>
-            {!capturedImage ? (
-                <View style={styles.cameraContainer}>
-                    <CameraView style={styles.camera} ref={cameraRef} />
-
-                    {/* Scanner UI */}
-                    <View style={styles.overlay} pointerEvents="none">
-                        <Animated.View style={[styles.scanTarget, { transform: [{ scale: cornerPulseAnim }] }]}>
-                            <View style={[styles.corner, styles.topLeft]} />
-                            <View style={[styles.corner, styles.topRight]} />
-                            <View style={[styles.corner, styles.bottomLeft]} />
-                            <View style={[styles.corner, styles.bottomRight]} />
-
-                            {/* Animated Scan Line */}
-                            <Animated.View style={[styles.scanLine, { transform: [{ translateY }] }]}>
-                                <LinearGradient
-                                    colors={['transparent', 'rgba(16, 185, 129, 0.4)', 'transparent']}
-                                    style={{ flex: 1 }}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 0, y: 1 }}
-                                />
+                                {/* Animated Scan Line */}
+                                <Animated.View style={[styles.scanLine, { transform: [{ translateY }] }]}>
+                                    <LinearGradient
+                                        colors={['transparent', 'rgba(16, 185, 129, 0.4)', 'transparent']}
+                                        style={{ flex: 1 }}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 0, y: 1 }}
+                                    />
+                                </Animated.View>
                             </Animated.View>
-                        </Animated.View>
 
-                        <View style={styles.scanTextContainer}>
-                            <Sparkles size={16} color={colors.primary} />
-                            <Text style={styles.scanText}>Enfoca tu plato para el análisis IA</Text>
+                            <View style={styles.scanTextContainer}>
+                                <Sparkles size={16} color={colors.primary} />
+                                <Text style={styles.scanText}>Enfoca tu plato para el análisis IA</Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.cameraControls}>
+                            <TouchableOpacity onPress={pickImage} style={styles.iconButton}>
+                                <ImageIcon size={24} color={colors.white} />
+                            </TouchableOpacity>
+
+                            <TouchableOpacity onPress={takePicture} style={styles.captureButton}>
+                                <LinearGradient
+                                    colors={[colors.primary, '#059669']}
+                                    style={styles.captureInnerGradient}
+                                >
+                                    <Camera size={32} color={colors.white} />
+                                </LinearGradient>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity onPress={onClose} style={styles.iconButton}>
+                                <X size={24} color={colors.white} />
+                            </TouchableOpacity>
                         </View>
                     </View>
+                ) : (
+                    <View style={styles.previewContainer}>
+                        <Image source={{ uri: capturedImage }} style={styles.previewImage} />
 
-                    <View style={styles.cameraControls}>
-                        <TouchableOpacity onPress={pickImage} style={styles.iconButton}>
-                            <ImageIcon size={24} color={colors.white} />
-                        </TouchableOpacity>
-
-                        <TouchableOpacity onPress={takePicture} style={styles.captureButton}>
-                            <LinearGradient
-                                colors={[colors.primary, '#059669']}
-                                style={styles.captureInnerGradient}
-                            >
-                                <Camera size={32} color={colors.white} />
-                            </LinearGradient>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity onPress={onClose} style={styles.iconButton}>
-                            <X size={24} color={colors.white} />
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            ) : (
-                <View style={styles.previewContainer}>
-                    <Image source={{ uri: capturedImage }} style={styles.previewImage} />
-
-                    {isAnalyzing ? (
-                        <BlurView intensity={20} style={styles.analyzingOverlay}>
-                            <View style={styles.analyzingCard}>
-                                <View style={styles.aiRing}>
-                                    <Sparkles size={30} color={colors.primary} />
-                                </View>
-                                <Text style={styles.analyzingTitle}>
-                                    {processingStep === 1 ? "Identificando..." : "Calculando..."}
-                                </Text>
-                                <Text style={styles.analyzingSub}>
-                                    NutriTrack está analizando los macros de tu plato
-                                </Text>
-                                <ActivityIndicator size="small" color={colors.primary} style={{ marginTop: 20 }} />
-                            </View>
-                        </BlurView>
-                    ) : analysisResult ? (
-                        <View style={styles.resultContainer}>
-                            <View style={styles.resultHeader}>
-                                <View style={styles.resultHeaderLeft}>
-                                    <Sparkles size={20} color={colors.primary} />
-                                    <Text style={styles.resultTitle}>Escaneo IA Finalizado</Text>
-                                </View>
-                                <TouchableOpacity style={styles.miniRetry} onPress={resetScanner}>
-                                    <RotateCcw size={16} color={colors.textSecondary} />
-                                </TouchableOpacity>
-                            </View>
-
-                            <ScrollView style={styles.resultList} showsVerticalScrollIndicator={false}>
-                                {analysisResult.map((item, index) => (
-                                    <View key={index} style={styles.resultItem}>
-                                        <View style={styles.itemHeader}>
-                                            <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
-                                            <Text style={styles.itemCalories}>{r(item.calories)} kcal</Text>
-                                        </View>
-
-                                        <View style={styles.itemEditRow}>
-                                            <View style={styles.weightEditWrapper}>
-                                                <TextInput
-                                                    style={styles.weightEditInput}
-                                                    value={item.weight.toString()}
-                                                    onChangeText={(val) => updateItemWeight(index, sanitizeNumber(val))}
-                                                    keyboardType="numeric"
-                                                    selectTextOnFocus
-                                                />
-                                                <Text style={styles.weightEditUnit}>g</Text>
-                                            </View>
-                                            <View style={styles.macroChips}>
-                                                <View style={[styles.macroChip, { backgroundColor: 'rgba(239,68,68,0.1)' }]}>
-                                                    <Text style={[styles.macroChipText, { color: '#EF4444' }]}>P:{r(item.protein)}</Text>
-                                                </View>
-                                                <View style={[styles.macroChip, { backgroundColor: 'rgba(245,158,11,0.1)' }]}>
-                                                    <Text style={[styles.macroChipText, { color: '#F59E0B' }]}>C:{r(item.carbs)}</Text>
-                                                </View>
-                                                <View style={[styles.macroChip, { backgroundColor: 'rgba(59,130,246,0.1)' }]}>
-                                                    <Text style={[styles.macroChipText, { color: '#3B82F6' }]}>G:{r(item.fat)}</Text>
-                                                </View>
-                                            </View>
-                                        </View>
+                        {isAnalyzing ? (
+                            <BlurView intensity={20} style={styles.analyzingOverlay}>
+                                <View style={styles.analyzingCard}>
+                                    <View style={styles.aiRing}>
+                                        <Sparkles size={30} color={colors.primary} />
                                     </View>
-                                ))}
-
-                                <View style={styles.totalBox}>
-                                    <Text style={styles.totalLabel}>Resumen Total</Text>
-                                    <Text style={styles.totalValue}>
-                                        {Math.round(analysisResult.reduce((s, i) => s + i.calories, 0))} kcal
+                                    <Text style={styles.analyzingTitle}>
+                                        {processingStep === 1 ? "Identificando..." : "Calculando..."}
                                     </Text>
+                                    <Text style={styles.analyzingSub}>
+                                        NutriTrack está analizando los macros de tu plato
+                                    </Text>
+                                    <ActivityIndicator size="small" color={colors.primary} style={{ marginTop: 20 }} />
                                 </View>
-                            </ScrollView>
+                            </BlurView>
+                        ) : analysisResult ? (
+                            <View style={styles.resultContainer}>
+                                <View style={styles.resultHeader}>
+                                    <View style={styles.resultHeaderLeft}>
+                                        <Sparkles size={20} color={colors.primary} />
+                                        <Text style={styles.resultTitle}>Escaneo IA Finalizado</Text>
+                                    </View>
+                                    <TouchableOpacity style={styles.miniRetry} onPress={resetScanner}>
+                                        <RotateCcw size={16} color={colors.textSecondary} />
+                                    </TouchableOpacity>
+                                </View>
 
-                            <View style={styles.footerBtns}>
-                                <TouchableOpacity style={styles.confirmBtn} onPress={confirmAndAdd}>
-                                    <Check size={20} color={colors.white} style={{ marginRight: 8 }} />
-                                    <Text style={styles.confirmText}>Añadir al Diario</Text>
-                                </TouchableOpacity>
+                                <ScrollView style={styles.resultList} showsVerticalScrollIndicator={false}>
+                                    {analysisResult.map((item, index) => (
+                                        <View key={index} style={styles.resultItem}>
+                                            <View style={styles.itemHeader}>
+                                                <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
+                                                <Text style={styles.itemCalories}>{r(item.calories)} kcal</Text>
+                                            </View>
+
+                                            <View style={styles.itemEditRow}>
+                                                <View style={styles.weightEditWrapper}>
+                                                    <TextInput
+                                                        style={styles.weightEditInput}
+                                                        value={item.weight.toString()}
+                                                        onChangeText={(val) => updateItemWeight(index, sanitizeNumber(val))}
+                                                        keyboardType="numeric"
+                                                        selectTextOnFocus
+                                                    />
+                                                    <Text style={styles.weightEditUnit}>g</Text>
+                                                </View>
+                                                <View style={styles.macroChips}>
+                                                    <View style={[styles.macroChip, { backgroundColor: 'rgba(239,68,68,0.1)' }]}>
+                                                        <Text style={[styles.macroChipText, { color: '#EF4444' }]}>P:{r(item.protein)}</Text>
+                                                    </View>
+                                                    <View style={[styles.macroChip, { backgroundColor: 'rgba(245,158,11,0.1)' }]}>
+                                                        <Text style={[styles.macroChipText, { color: '#F59E0B' }]}>C:{r(item.carbs)}</Text>
+                                                    </View>
+                                                    <View style={[styles.macroChip, { backgroundColor: 'rgba(59,130,246,0.1)' }]}>
+                                                        <Text style={[styles.macroChipText, { color: '#3B82F6' }]}>G:{r(item.fat)}</Text>
+                                                    </View>
+                                                </View>
+                                            </View>
+                                        </View>
+                                    ))}
+
+                                    <View style={styles.totalBox}>
+                                        <Text style={styles.totalLabel}>Resumen Total</Text>
+                                        <Text style={styles.totalValue}>
+                                            {Math.round(analysisResult.reduce((s, i) => s + i.calories, 0))} kcal
+                                        </Text>
+                                    </View>
+                                </ScrollView>
+
+                                <View style={styles.footerBtns}>
+                                    <TouchableOpacity style={styles.confirmBtn} onPress={confirmAndAdd}>
+                                        <Check size={20} color={colors.white} style={{ marginRight: 8 }} />
+                                        <Text style={styles.confirmText}>Añadir al Diario</Text>
+                                    </TouchableOpacity>
+                                </View>
                             </View>
-                        </View>
-                    ) : null}
-                </View>
-            )}
-        </View>
-    </Modal>
-);
+                        ) : null}
+                    </View>
+                )}
+            </View>
+        </Modal>
+    );
 };
 
 const styles = StyleSheet.create({

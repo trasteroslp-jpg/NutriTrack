@@ -80,13 +80,13 @@ const DietsScreen = () => {
                     let options = library[type];
 
                     // SMART FILTERING
-                    const diet = user.dietType || 'omnivore';
+                    const userDietType = user.dietType || 'omnivore';
                     const restr = user.restrictions || [];
 
                     // Filter by DIET TYPE
-                    if (diet === 'vegan') {
+                    if (userDietType === 'vegan') {
                         options = options.filter(o => o.tags?.includes('vegan'));
-                    } else if (diet === 'vegetarian') {
+                    } else if (userDietType === 'vegetarian') {
                         options = options.filter(o => o.tags?.includes('vegetarian'));
                     }
 
