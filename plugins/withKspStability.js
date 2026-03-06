@@ -18,12 +18,12 @@ module.exports = function withKspStability(config) {
             {
                 type: 'property',
                 key: 'org.gradle.jvmargs',
-                value: '-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+UseParallelGC -Dkotlin.daemon.jvm.options="-Xmx2048m"',
+                value: '-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+UseParallelGC -Dkotlin.daemon.jvm.options="-Xmx3072m"',
             },
             {
                 type: 'property',
                 key: 'kotlin.daemon.jvm.options',
-                value: '-Xmx2048m',
+                value: '-Xmx3072m',
             },
             {
                 type: 'property',
