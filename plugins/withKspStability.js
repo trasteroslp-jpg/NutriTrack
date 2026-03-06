@@ -7,7 +7,9 @@ module.exports = function withKspStability(config) {
         item.key !== 'org.gradle.jvmargs' &&
         item.key !== 'kotlin.daemon.jvm.options' &&
         item.key !== 'ksp.incremental' &&
-        item.key !== 'ksp.allow.all.files'
+        item.key !== 'ksp.allow.all.files' &&
+        item.key !== 'kotlin.compiler.execution.strategy' &&
+        item.key !== 'org.gradle.parallel'
     );
 
     config.modResults.push(
@@ -30,6 +32,16 @@ module.exports = function withKspStability(config) {
         type: 'property',
         key: 'ksp.allow.all.files',
         value: 'true',
+      },
+      {
+        type: 'property',
+        key: 'kotlin.compiler.execution.strategy',
+        value: 'in-process',
+      },
+      {
+        type: 'property',
+        key: 'org.gradle.parallel',
+        value: 'false',
       }
     );
 
