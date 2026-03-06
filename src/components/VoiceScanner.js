@@ -7,6 +7,9 @@ import { colors } from '../theme/colors';
 import { r } from '../utils/formatNumber';
 import { useApp } from '../context/AppContext';
 import { LinearGradient } from 'expo-linear-gradient';
+import { sanitizeNumber } from '../utils/sanitize';
+
+import { auth } from '../config/firebase';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -132,13 +135,24 @@ const VoiceScanner = ({ visible, onClose }) => {
         setIsAnalyzing(true);
         setProcessingStep(2); // Analyzing
         try {
+            const currentUser = auth.currentUser;
+            let token = "";
+            if (currentUser) {
+                token = await currentUser.getIdToken(true);
+            } else {
+                throw new Error("Sesión no válida. Por favor, reinicia sesión.");
+            }
+
             const base64Audio = await FileSystem.readAsStringAsync(uri, {
                 encoding: 'base64',
             });
 
             const response = await fetch(CLOUD_FUNCTION_URL, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
                 body: JSON.stringify({
                     type: 'audio',
                     mimeType: 'audio/mp4',
@@ -326,8 +340,8 @@ const VoiceScanner = ({ visible, onClose }) => {
                                                 <View style={styles.weightEditWrapper}>
                                                     <TextInput
                                                         style={styles.weightEditInput}
-                                                        value={String(item.weight)}
-                                                        onChangeText={(val) => updateItemWeight(idx, val)}
+                                                        value={item.weight.toString()}
+                                                        onChangeText={(val) => updateItemWeight(idx, sanitizeNumber(val))}
                                                         keyboardType="numeric"
                                                         selectTextOnFocus
                                                     />

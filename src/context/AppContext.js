@@ -1,4 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
     onAuthStateChanged,
@@ -9,6 +10,7 @@ import {
     GoogleAuthProvider,
     signInWithCredential,
     sendPasswordResetEmail,
+    deleteUser,
 } from 'firebase/auth';
 import {
     doc,
@@ -29,8 +31,11 @@ import { foodCatalogue } from '../data/mockData';
 import { HealthService } from '../services/healthService';
 import { XP_ACTIONS, getLevelInfo } from '../utils/gamificationLogic';
 import { orderBy, limit } from 'firebase/firestore';
+import Purchases from 'react-native-purchases';
+import Constants from 'expo-constants';
 
 const AppContext = createContext();
+const ENTITLEMENT_ID = process.env.EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID || 'Libunca 2002 SL Pro';
 
 const DEFAULT_USER_PROFILE = {
     name: '',
@@ -122,6 +127,22 @@ export const AppProvider = ({ children }) => {
             const profileRef = doc(db, 'users', uid);
             const profileSnap = await getDoc(profileRef);
 
+            // Identificar usuario en RevenueCat (Solo en entornos nativos)
+            if (Constants.appOwnership !== 'expo') {
+                try {
+                    await Purchases.logIn(uid);
+                    const customerInfo = await Purchases.getCustomerInfo();
+                    const isProFromRC = !!customerInfo.entitlements.active[ENTITLEMENT_ID];
+
+                    // Si hay discrepancia con la BBDD, actualizamos
+                    if (profileSnap.exists() && profileSnap.data().isPro !== isProFromRC) {
+                        await updateDoc(profileRef, { isPro: isProFromRC });
+                    }
+                } catch (rcErr) {
+                    console.log('RevenueCat no activo en este entorno.');
+                }
+            }
+
             if (profileSnap.exists()) {
                 const data = profileSnap.data();
                 // Migration
@@ -137,7 +158,7 @@ export const AppProvider = ({ children }) => {
                     if (!data.name && authUser.displayName) data.name = authUser.displayName;
                 }
 
-                const repairedProfile = { ...DEFAULT_USER_PROFILE, ...data };
+                const repairedProfile = { ...DEFAULT_USER_PROFILE, ...data, uid: uid };
                 setUser(repairedProfile);
 
                 if ((!profileSnap.data().email && data.email) || (!profileSnap.data().name && data.name)) {
@@ -155,6 +176,7 @@ export const AppProvider = ({ children }) => {
                 const authUser = auth.currentUser;
                 const newProfile = {
                     ...DEFAULT_USER_PROFILE,
+                    uid: uid,
                     email: authUser?.email || '',
                     name: authUser?.displayName || 'Usuario',
                 };
@@ -243,23 +265,28 @@ export const AppProvider = ({ children }) => {
 
     // ── Gamification ──
     const addXP = async (points) => {
-        setUser(prev => {
-            const currentXP = prev.xp || 0;
-            const newXP = currentXP + points;
-            const oldInfo = getLevelInfo(currentXP);
-            const newInfo = getLevelInfo(newXP);
+        if (!firebaseUser) return;
 
-            if (newInfo.level > oldInfo.level) setLevelUpData(newInfo);
+        const currentXP = user.xp || 0;
+        const newXP = currentXP + points;
+        const oldInfo = getLevelInfo(currentXP);
+        const newInfo = getLevelInfo(newXP);
 
-            if (firebaseUser) {
-                setDoc(doc(db, 'users', firebaseUser.uid), { xp: newXP }, { merge: true })
-                    .catch(e => console.error('Error saving XP:', e));
-                // Sync XP to public leaderboard
-                setDoc(doc(db, 'leaderboard_profiles', firebaseUser.uid), { xp: newXP }, { merge: true })
-                    .catch(e => console.warn('Leaderboard XP sync:', e.message));
-            }
-            return { ...prev, xp: newXP };
-        });
+        if (newInfo.level > oldInfo.level) setLevelUpData(newInfo);
+
+        setUser(prev => ({ ...prev, xp: newXP }));
+
+        try {
+            await setDoc(doc(db, 'users', firebaseUser.uid), { xp: newXP }, { merge: true });
+            // Sync XP to public leaderboard - Using await ensures it finishes
+            await setDoc(doc(db, 'leaderboard_profiles', firebaseUser.uid), {
+                xp: newXP,
+                name: user.name || 'Héroe NutriTrack',
+                profileImage: user.profileImage || null
+            }, { merge: true });
+        } catch (e) {
+            console.error('Error saving XP/Leaderboard sync:', e);
+        }
     };
 
     // ── Calcular racha ──
@@ -316,7 +343,7 @@ export const AppProvider = ({ children }) => {
         try {
             const cred = await createUserWithEmailAndPassword(auth, email, password);
             await updateProfile(cred.user, { displayName: name });
-            const newProfile = { ...DEFAULT_USER_PROFILE, name, email, isPro: false, createdAt: serverTimestamp() };
+            const newProfile = { ...DEFAULT_USER_PROFILE, uid: cred.user.uid, name, email, isPro: false, createdAt: serverTimestamp() };
             await setDoc(doc(db, 'users', cred.user.uid), newProfile);
             setUser(newProfile);
             setIsNewUser(true);
@@ -359,6 +386,33 @@ export const AppProvider = ({ children }) => {
             setStreak(0);
             setIsNewUser(false);
         } catch (e) { console.error('Logout error:', e); }
+    };
+
+    const deleteAccount = async () => {
+        try {
+            if (!auth.currentUser) return { success: false, error: 'No user authenticated' };
+            const uid = auth.currentUser.uid;
+
+            // Delete Leaderboard Profile to keep public data clean
+            await deleteDoc(doc(db, 'leaderboard_profiles', uid));
+            // Delete personal data from users root
+            await deleteDoc(doc(db, 'users', uid));
+
+            // Authenticate user deletion from Firebase Auth
+            await deleteUser(auth.currentUser);
+
+            setWeightHistory([]);
+            setFavorites([]);
+            setCustomRecipes([]);
+            setWaterIntake(0);
+            setStreak(0);
+            setIsNewUser(false);
+            return { success: true };
+        } catch (e) {
+            console.error('Account deletion error:', e);
+            // Si Firebase pide re-autenticación reciente, lanzamos el error amigablemente
+            return { success: false, error: e.message };
+        }
     };
 
     // ── MEALS ──
@@ -480,12 +534,21 @@ export const AppProvider = ({ children }) => {
 
     // ── HEALTH & EXTRA ──
     const logWeight = async (weight) => {
-        const newEntry = { date: getDateString(), weight: parseFloat(weight) };
+        const parsedWeight = parseFloat(weight);
+        const newEntry = { date: getDateString(), weight: parsedWeight };
         const updatedHistory = [...weightHistory, newEntry].sort((a, b) => b.date > a.date ? 1 : -1);
         setWeightHistory(updatedHistory);
-        await updateUser({ weight: parseFloat(weight) });
+        await updateUser({ weight: parsedWeight });
         if (firebaseUser) {
             await setDoc(doc(db, 'users', firebaseUser.uid, 'extra', 'health'), { weightHistory: updatedHistory }, { merge: true });
+        }
+        // Sincronizar peso a Health Connect (sin bloquear si falla)
+        try {
+            if (Platform.OS === 'android') {
+                await HealthService.writeWeight(parsedWeight);
+            }
+        } catch (e) {
+            console.warn('No se pudo escribir peso en Health Connect:', e);
         }
     };
 
@@ -569,7 +632,7 @@ export const AppProvider = ({ children }) => {
     return (
         <AppContext.Provider value={{
             firebaseUser, user, isLoading, isLoggedIn, authError, setAuthError,
-            loginWithEmail, registerWithEmail, resetPassword, logout,
+            loginWithEmail, registerWithEmail, resetPassword, logout, deleteAccount,
             meals, addMeal, deleteMeal, updateMeal, getStatsForRange,
             streak, waterIntake, addWater, weightHistory, logWeight,
             favorites, toggleFavorite,

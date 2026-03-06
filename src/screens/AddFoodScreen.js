@@ -11,6 +11,7 @@ import CameraScanner from '../components/CameraScanner';
 import BarcodeScanner from '../components/BarcodeScanner';
 import VoiceScanner from '../components/VoiceScanner';
 import PremiumModal from '../components/PremiumModal';
+import { sanitizeText, sanitizeNumber, sanitizeName } from '../utils/sanitize';
 
 const categories = ['Todo', 'Favoritos', 'Recetas', 'Proteínas', 'Carbohidratos', 'Vegetales', 'Frutas'];
 
@@ -480,7 +481,7 @@ const AddFoodScreen = () => {
                                 <TextInput
                                     style={styles.customGramText}
                                     value={quantity}
-                                    onChangeText={setQuantity}
+                                    onChangeText={(val) => setQuantity(sanitizeNumber(val))}
                                     keyboardType="numeric"
                                     placeholder="..."
                                     placeholderTextColor={colors.textSecondary}
@@ -562,7 +563,7 @@ const AddFoodScreen = () => {
                         placeholder="Buscar alimento..."
                         placeholderTextColor="rgba(255,255,255,0.4)"
                         value={searchQuery}
-                        onChangeText={setSearchQuery}
+                        onChangeText={(val) => setSearchQuery(sanitizeText(val))}
                         returnKeyType="done"
                         onSubmitEditing={Keyboard.dismiss}
                     />
@@ -670,7 +671,7 @@ const AddFoodScreen = () => {
                                 placeholder="Ej: Batido Power"
                                 placeholderTextColor={colors.textSecondary}
                                 value={recipeName}
-                                onChangeText={setRecipeName}
+                                onChangeText={(val) => setRecipeName(sanitizeName(val))}
                                 returnKeyType="done"
                             />
 
@@ -690,7 +691,7 @@ const AddFoodScreen = () => {
                                             style={styles.ingInput}
                                             keyboardType="numeric"
                                             value={ing.quantity.toString()}
-                                            onChangeText={(v) => setRecipeIngredients(prev => prev.map(i => i.id === ing.id ? { ...i, quantity: parseInt(v) || 0 } : i))}
+                                            onChangeText={(v) => setRecipeIngredients(prev => prev.map(i => i.id === ing.id ? { ...i, quantity: parseInt(sanitizeNumber(v)) || 0 } : i))}
                                             returnKeyType="done"
                                         />
                                         <Text style={styles.ingUnit}>{getUnit(ing)}</Text>
@@ -710,7 +711,7 @@ const AddFoodScreen = () => {
                                         placeholder="Buscar ingrediente..."
                                         autoFocus
                                         value={ingSearchQuery}
-                                        onChangeText={setIngSearchQuery}
+                                        onChangeText={(val) => setIngSearchQuery(sanitizeText(val))}
                                         returnKeyType="done"
                                     />
                                     <TouchableOpacity onPress={() => setIsSearchingIng(false)}>

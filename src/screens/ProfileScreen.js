@@ -1,20 +1,22 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, TextInput, Alert, useWindowDimensions, Dimensions, Switch, Keyboard, TouchableWithoutFeedback, KeyboardAvoidingView, Platform, Modal, ActivityIndicator } from 'react-native';
-import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, setDoc, doc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { getLevelInfo } from '../utils/gamificationLogic';
 import * as ImagePicker from 'expo-image-picker';
-import { User, Camera, Settings, ChevronRight, LogOut, Trophy, Target, Zap, Flame, CheckCircle2, Crown, Sparkles, Activity, RefreshCw, Award, Leaf, Wheat, Milk, Plus, TrendingUp, X } from 'lucide-react-native';
+import { User, Camera, Settings, ChevronRight, LogOut, Trophy, Target, Zap, Flame, CheckCircle2, Crown, Sparkles, Activity, RefreshCw, Award, Leaf, Wheat, Milk, Plus, TrendingUp, X, Trash2 } from 'lucide-react-native';
 import { colors } from '../theme/colors';
 import { useApp } from '../context/AppContext';
 import { useNavigation } from '@react-navigation/native';
 import PremiumModal from '../components/PremiumModal';
 import { PieChart } from 'react-native-chart-kit';
+import { sanitizeName, sanitizeNumber } from '../utils/sanitize';
+import * as WebBrowser from 'expo-web-browser';
 
 import appConfig from '../../app.json';
 
 const ProfileScreen = () => {
-    const { user, updateUser, meals, streak, logout, weightHistory, logWeight, loginWithEmail, syncWeightFromHealth, isNewUser, setIsNewUser } = useApp();
+    const { user, updateUser, meals, streak, logout, deleteAccount, weightHistory, logWeight, loginWithEmail, syncWeightFromHealth, isNewUser, setIsNewUser } = useApp();
     const navigation = useNavigation();
     const appVersion = appConfig.expo.version;
     const { width } = useWindowDimensions();
@@ -35,10 +37,18 @@ const ProfileScreen = () => {
     const [leaderboardData, setLeaderboardData] = useState([]);
     const [isFetchingLeaderboard, setIsFetchingLeaderboard] = useState(false);
 
-    // Fetch Leaderboard Function
     const fetchLeaderboard = async () => {
         setIsFetchingLeaderboard(true);
         try {
+            const uid = user?.uid;
+            if (uid) {
+                await setDoc(doc(db, 'leaderboard_profiles', uid), {
+                    name: user.name || 'Héroe NutriTrack',
+                    xp: user.xp || 0,
+                    profileImage: user.profileImage || null,
+                }, { merge: true }).catch(err => console.warn("Failed to force sync:", err));
+            }
+
             const q = query(collection(db, 'leaderboard_profiles'), orderBy('xp', 'desc'), limit(15));
             const querySnapshot = await getDocs(q);
             const usersList = [];
@@ -48,7 +58,7 @@ const ProfileScreen = () => {
                     id: doc.id,
                     name: data.name || 'Héroe NutriTrack',
                     xp: data.xp || 0,
-                    photoURL: data.photoURL || null,
+                    photoURL: data.photoURL || data.profileImage || null,
                 });
             });
             setLeaderboardData(usersList);
@@ -98,6 +108,41 @@ const ProfileScreen = () => {
         // Clear new user flag after profile is updated
         if (isNewUser) setIsNewUser(false);
     }, [name, age, weight, height, gender, activityLevel, goal, dietType, restrictions]);
+
+    const handleDeleteAccount = () => {
+        Alert.alert(
+            "⚠️ ¿ELIMINAR TU CUENTA?",
+            "Esta acción es PERMANENTE e IRREVERSIBLE.\n\nSe borrarán:\n• Tus progresos y estadísticas.\n• Historial de comidas y peso.\n• Perfil y medallas.\n• Tu derecho al olvido según RGPD.",
+            [
+                { text: "Cancelar", style: "cancel" },
+                {
+                    text: "Siguiente paso »",
+                    onPress: () => {
+                        Alert.alert(
+                            "🚨 ÚLTIMA CONFIRMACIÓN",
+                            "¿Estás absolutamente seguro? No podremos recuperar tus datos una vez confirmes.",
+                            [
+                                { text: "No, mantener mis datos", style: "cancel" },
+                                {
+                                    text: "Borrar TODO definitivamente",
+                                    style: "destructive",
+                                    onPress: async () => {
+                                        const result = await deleteAccount();
+                                        if (!result.success) {
+                                            Alert.alert(
+                                                "Error de Seguridad",
+                                                "Por seguridad, debes haber iniciado sesión recientemente para borrar tu cuenta. Por favor, cierra sesión y vuelve a entrar para validar tu identidad antes de borrar."
+                                            );
+                                        }
+                                    }
+                                }
+                            ]
+                        );
+                    }
+                }
+            ]
+        );
+    };
 
     const pickImage = async () => {
         const result = await ImagePicker.launchImageLibraryAsync({
@@ -257,21 +302,13 @@ const ProfileScreen = () => {
                     <TextInput
                         style={styles.userNameInput}
                         value={name}
-                        onChangeText={setName}
+                        onChangeText={(val) => setName(sanitizeName(val))}
                         placeholder="Tu Nombre"
                         placeholderTextColor={colors.textSecondary}
                         returnKeyType="done"
                         onSubmitEditing={Keyboard.dismiss}
                     />
                     <Text style={styles.userEmail}>{user.email || 'Usuario de NutriTrack'}</Text>
-
-                    <TouchableOpacity
-                        style={[styles.saveButton, { backgroundColor: 'transparent', marginTop: 10, borderWidth: 1, borderColor: colors.danger }]}
-                        onPress={logout}
-                    >
-                        <LogOut size={18} color={colors.danger} />
-                        <Text style={[styles.saveButtonText, { color: colors.danger }]}>Cerrar Sesión</Text>
-                    </TouchableOpacity>
                 </View>
 
                 {/* Biométricos */}
@@ -312,7 +349,7 @@ const ProfileScreen = () => {
                                 <TextInput
                                     style={styles.bioTextInput}
                                     value={age}
-                                    onChangeText={setAge}
+                                    onChangeText={(val) => setAge(sanitizeNumber(val))}
                                     keyboardType="numeric"
                                     placeholder="25"
                                     placeholderTextColor={colors.textSecondary}
@@ -331,7 +368,7 @@ const ProfileScreen = () => {
                                 <TextInput
                                     style={styles.bioTextInput}
                                     value={weight}
-                                    onChangeText={setWeight}
+                                    onChangeText={(val) => setWeight(sanitizeNumber(val))}
                                     keyboardType="numeric"
                                     placeholder="70.0"
                                     placeholderTextColor={colors.textSecondary}
@@ -350,7 +387,7 @@ const ProfileScreen = () => {
                                 <TextInput
                                     style={styles.bioTextInput}
                                     value={height}
-                                    onChangeText={setHeight}
+                                    onChangeText={(val) => setHeight(sanitizeNumber(val))}
                                     keyboardType="numeric"
                                     placeholder="175"
                                     placeholderTextColor={colors.textSecondary}
@@ -621,6 +658,42 @@ const ProfileScreen = () => {
                         />
                     </ScrollView>
                 </View>
+                {/* Soporte y Cuenta */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Soporte & Privacidad</Text>
+                    <View style={styles.inputCard}>
+                        <TouchableOpacity
+                            style={styles.syncRow}
+                            onPress={() => WebBrowser.openBrowserAsync('https://nutritrack-327c1.web.app/privacy.html')}
+                        >
+                            <View style={styles.syncLabelContainer}>
+                                <Settings size={20} color={colors.textSecondary} />
+                                <Text style={[styles.syncLabel, { color: colors.text }]}>Términos y Privacidad</Text>
+                            </View>
+                            <ChevronRight size={20} color={colors.textSecondary} />
+                        </TouchableOpacity>
+
+                        <View style={styles.divider} />
+
+                        <TouchableOpacity style={styles.syncRow} onPress={logout}>
+                            <View style={styles.syncLabelContainer}>
+                                <LogOut size={20} color={colors.danger} />
+                                <Text style={[styles.syncLabel, { color: colors.danger }]}>Cerrar Sesión</Text>
+                            </View>
+                            <ChevronRight size={20} color={colors.danger} />
+                        </TouchableOpacity>
+
+                        <View style={styles.divider} />
+
+                        <TouchableOpacity style={styles.syncRow} onPress={handleDeleteAccount}>
+                            <View style={styles.syncLabelContainer}>
+                                <Trash2 size={20} color={colors.danger} />
+                                <Text style={[styles.syncLabel, { color: colors.danger }]}>Eliminar Cuenta definitivamente</Text>
+                            </View>
+                            <ChevronRight size={20} color={colors.danger} />
+                        </TouchableOpacity>
+                    </View>
+                </View>
 
 
                 <View style={styles.versionContainer}>
@@ -660,7 +733,11 @@ const ProfileScreen = () => {
                                                 #{index + 1}
                                             </Text>
                                             <View style={[styles.rankAvatar, { backgroundColor: isCurrentUser ? colors.primary + '20' : colors.surface }]}>
-                                                <Text style={{ fontSize: 20 }}>{levelInfo.icon}</Text>
+                                                {lbUser.photoURL ? (
+                                                    <Image source={{ uri: lbUser.photoURL }} style={{ width: 48, height: 48, borderRadius: 24 }} />
+                                                ) : (
+                                                    <Text style={{ fontSize: 20 }}>{levelInfo.icon}</Text>
+                                                )}
                                             </View>
                                             <View style={styles.rankInfo}>
                                                 <Text style={[styles.rankName, isCurrentUser && { color: colors.primary }]}>{lbUser.name}</Text>
@@ -1325,6 +1402,12 @@ const styles = StyleSheet.create({
     rankRowCurrent: {
         borderColor: colors.primary,
         borderWidth: 2,
+        backgroundColor: colors.primary + '10',
+        shadowColor: colors.primary,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        elevation: 4,
     },
     rankNumber: {
         fontSize: 18,

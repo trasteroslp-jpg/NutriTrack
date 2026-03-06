@@ -15,6 +15,7 @@ LocaleConfig.locales['es'] = {
 LocaleConfig.defaultLocale = 'es';
 import { colors } from '../theme/colors';
 import { useApp } from '../context/AppContext';
+import { sanitizeNumber } from '../utils/sanitize';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // ── Gráfico de barras personalizado con SVG (sin bugs de re-render) ──
@@ -511,7 +512,7 @@ const ProgressScreen = () => {
                         <TextInput
                             style={styles.weightTextInput}
                             value={weightInput}
-                            onChangeText={setWeightInput}
+                            onChangeText={(val) => setWeightInput(sanitizeNumber(val))}
                             placeholder="Ej: 75.5"
                             placeholderTextColor={colors.textSecondary}
                             keyboardType="numeric"

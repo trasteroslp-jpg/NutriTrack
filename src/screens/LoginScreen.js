@@ -8,6 +8,7 @@ import {
 import { colors } from '../theme/colors';
 import { useApp } from '../context/AppContext';
 import { LogIn, UserPlus, Mail, Lock, Eye, EyeOff, Sparkles, ShieldCheck, User } from 'lucide-react-native';
+import { sanitizeName, sanitizeText } from '../utils/sanitize';
 
 // ── Modos de la pantalla ──
 const MODE = { LOGIN: 'login', REGISTER: 'register' };
@@ -140,7 +141,7 @@ const LoginScreen = () => {
                                     placeholder="Tu nombre"
                                     placeholderTextColor={colors.textSecondary}
                                     value={name}
-                                    onChangeText={setName}
+                                    onChangeText={(val) => setName(sanitizeName(val))}
                                     autoCapitalize="words"
                                     returnKeyType="done"
                                     onSubmitEditing={Keyboard.dismiss}
@@ -156,7 +157,7 @@ const LoginScreen = () => {
                                 placeholder="Correo electrónico"
                                 placeholderTextColor={colors.textSecondary}
                                 value={email}
-                                onChangeText={setEmail}
+                                onChangeText={(val) => setEmail(sanitizeText(val).toLowerCase())}
                                 keyboardType="email-address"
                                 autoCapitalize="none"
                                 autoCorrect={false}

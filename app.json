@@ -9,6 +9,7 @@
     "icon": "./assets/Logo NutriTrack.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": false,
+    "jsEngine": "hermes",
     "platforms": [
       "android",
       "ios"
@@ -32,18 +33,16 @@
       },
       "edgeToEdgeEnabled": true,
       "permissions": [
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "com.android.vending.BILLING",
+        "android.permission.health.READ_WEIGHT",
+        "android.permission.health.WRITE_WEIGHT"
       ]
     },
     "plugins": [
       "expo-web-browser",
-      [
-        "@stripe/stripe-react-native",
-        {
-          "merchantIdentifier": "merchant.com.david.nutritrack",
-          "enableGooglePay": true
-        }
-      ],
+      "./plugins/withHealthConnectDelegate",
+      "./plugins/withKspStability",
       [
         "react-native-health-connect",
         {
@@ -61,10 +60,8 @@
             "compileSdkVersion": 35,
             "targetSdkVersion": 35,
             "minSdkVersion": 26,
-            "kotlinVersion": "2.0.21",
-            "extraMavenRepos": [
-              "https://maven.google.com"
-            ]
+            "kotlinVersion": "1.9.24",
+            "enableProguardInReleaseBuilds": true
           }
         }
       ]

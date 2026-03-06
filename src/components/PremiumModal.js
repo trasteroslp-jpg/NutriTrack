@@ -1,39 +1,79 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Platform } from 'react-native';
-import { Shield, Check, Star, Zap, CreditCard, X, Sparkles, Mic, BarChart3, Trophy, Award } from 'lucide-react-native';
-import { useStripe } from '@stripe/stripe-react-native';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { X, Sparkles, Shield, RefreshCw, Mic, BarChart3 } from 'lucide-react-native';
+import Purchases from 'react-native-purchases';
 import { colors } from '../theme/colors';
 import { useApp } from '../context/AppContext';
+import { showPaywall, showCustomerCenter, restorePurchases as restoreAction } from '../services/subscriptionService';
+import Constants from 'expo-constants';
+
+const isExpoGo = Constants.appOwnership === 'expo';
 
 const PremiumModal = ({ visible, onClose }) => {
-    const { initPaymentSheet, presentPaymentSheet } = useStripe();
     const { user, updateUser, firebaseUser } = useApp();
     const [loading, setLoading] = useState(false);
+    const [offerings, setOfferings] = useState(null);
 
-    const purchasePlan = async (planId) => {
+    React.useEffect(() => {
+        if (visible) {
+            fetchOfferings();
+        }
+    }, [visible]);
+
+    const fetchOfferings = async () => {
+        if (isExpoGo) {
+            console.log('Skipping fetchOfferings in Expo Go');
+            return;
+        }
+        try {
+            const offerings = await Purchases.getOfferings();
+            if (offerings.current) {
+                setOfferings(offerings.current);
+            }
+        } catch (e) {
+            console.error('Error fetching offerings:', e);
+        }
+    };
+
+    const handleSubscribe = async () => {
         setLoading(true);
         try {
-            // Nota: En una app real, aquí llamarías a tu backend (Firebase Cloud Function)
-            // para crear un PaymentIntent. Como estamos en modo desarrollo local,
-            // vamos a simular el flujo exitoso por ahora o usar el Secret Key si tuviéramos backend.
+            // Usamos el Paywall nativo de RevenueCat
+            const result = await showPaywall();
 
-            // SIMULACIÓN DE PROCESAMIENTO
-            setTimeout(async () => {
+            // Verificamos si la suscripción se activó
+            if (isExpoGo) {
+                onClose();
+                return;
+            }
+            const customerInfo = await Purchases.getCustomerInfo();
+            const ENTITLEMENT_ID = process.env.EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID || 'Libunca 2002 SL Pro';
+
+            if (customerInfo.entitlements.active[ENTITLEMENT_ID]) {
                 await updateUser({ isPro: true });
-                setLoading(false);
-                Alert.alert(
-                    "¡Bienvenido a NutriTrack PRO!",
-                    "Tu suscripción se ha activado correctamente. Ya tienes acceso a IA Vision y Registro por Voz ilimitado.",
-                    [{ text: "¡Genial!", onPress: onClose }]
-                );
-            }, 2000);
-
+                onClose();
+            }
         } catch (e) {
-            console.error(e);
-            Alert.alert("Error", "No se pudo procesar el pago en este momento.");
+            console.error('Paywall Error:', e);
+        } finally {
             setLoading(false);
         }
     };
+
+    const restorePurchases = async () => {
+        setLoading(true);
+        const success = await restoreAction();
+        if (success) {
+            await updateUser({ isPro: true });
+            Alert.alert("Éxito", "Tu suscripción ha sido restaurada.");
+        } else {
+            Alert.alert("Info", "No se encontraron suscripciones activas.");
+        }
+        setLoading(false);
+    };
+
+    const monthlyPackage = offerings?.availablePackages?.find(p => p.packageType === 'MONTHLY');
+    const annualPackage = offerings?.availablePackages?.find(p => p.packageType === 'ANNUAL');
 
     return (
         <Modal visible={visible} animationType="slide" transparent={true}>
@@ -88,28 +128,36 @@ const PremiumModal = ({ visible, onClose }) => {
                         </View>
 
                         <View style={styles.plans}>
-                            <TouchableOpacity style={styles.planCard} onPress={() => purchasePlan('monthly')}>
-                                <View>
-                                    <Text style={styles.planName}>Mes PRO</Text>
-                                    <Text style={styles.planPrice}>9,99€ <Text style={styles.planPeriod}>/mes</Text></Text>
+                            <TouchableOpacity
+                                style={[styles.planCard, styles.planCardActive]}
+                                onPress={handleSubscribe}
+                                disabled={loading}
+                            >
+                                <View style={styles.popularBadge}>
+                                    <Text style={styles.popularText}>TOP VENTAS</Text>
                                 </View>
-                                <CreditCard size={20} color={colors.textSecondary} />
+                                <View>
+                                    <Text style={styles.planName}>Ver Planes PRO</Text>
+                                    <Text style={styles.planPrice}>Suscripción <Text style={styles.planPeriod}>IA Vision</Text></Text>
+                                    <Text style={styles.savingsText}>Incluye prueba gratuita</Text>
+                                </View>
+                                <Sparkles size={24} color={colors.accent} fill={colors.accent} />
                             </TouchableOpacity>
 
-                            <TouchableOpacity style={[styles.planCard, styles.planCardActive]} onPress={() => purchasePlan('annual')}>
-                                <View style={styles.popularBadge}>
-                                    <Text style={styles.popularText}>MEJOR VALOR</Text>
-                                </View>
-                                <View>
-                                    <Text style={styles.planName}>Año PRO</Text>
-                                    <Text style={styles.planPrice}>59,99€ <Text style={styles.planPeriod}>/año</Text></Text>
-                                    <Text style={styles.savingsText}>Ahorra un 50%</Text>
-                                </View>
-                                <Zap size={22} color={colors.accent} fill={colors.accent} />
+                            <TouchableOpacity style={styles.restoreButton} onPress={restorePurchases}>
+                                <RefreshCw size={14} color={colors.textSecondary} style={{ marginRight: 6 }} />
+                                <Text style={styles.restoreText}>Restaurar compras</Text>
                             </TouchableOpacity>
+
+                            {user?.isPro && (
+                                <TouchableOpacity style={styles.restoreButton} onPress={showCustomerCenter}>
+                                    <Shield size={14} color={colors.textSecondary} style={{ marginRight: 6 }} />
+                                    <Text style={styles.restoreText}>Gestionar suscripción</Text>
+                                </TouchableOpacity>
+                            )}
                         </View>
 
-                        <Text style={styles.footerNote}>Pago seguro procesado por Stripe. Cancela en cualquier momento.</Text>
+                        <Text style={styles.footerNote}>Pago seguro procesado por Google Play. Cancela en cualquier momento.</Text>
                     </ScrollView>
 
                     {loading && (
@@ -320,6 +368,21 @@ const styles = StyleSheet.create({
         marginTop: 20,
         fontSize: 16,
         fontWeight: '600',
+    },
+    restoreButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 10,
+        marginTop: 10,
+    },
+    restoreText: {
+        fontSize: 13,
+        color: colors.textSecondary,
+        fontWeight: '500',
+    },
+    disabledCard: {
+        opacity: 0.6,
     }
 });
 

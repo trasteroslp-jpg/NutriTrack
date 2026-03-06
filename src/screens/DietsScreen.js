@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensio
 import { ChefHat, Settings, Info, CheckCircle2, XCircle, RotateCcw, UtensilsCrossed, Sparkles, Plus } from 'lucide-react-native';
 import { colors } from '../theme/colors';
 import { useApp } from '../context/AppContext';
+import { sanitizeText } from '../utils/sanitize';
 
 const DIETARY_RESTRICTIONS = [
     'Carne Roja', 'Pescado', 'Marisco', 'Pollo', 'Huevos', 'Lácteos',
@@ -383,7 +384,7 @@ const DietsScreen = () => {
                             placeholder="Ejem: Brócoli, Lentejas..."
                             placeholderTextColor={colors.textSecondary}
                             value={customDisliked}
-                            onChangeText={setCustomDisliked}
+                            onChangeText={(val) => setCustomDisliked(sanitizeText(val))}
                         />
                         <TouchableOpacity style={styles.addIconButton} onPress={handleAddCustomDisliked}>
                             <Plus size={20} color={colors.white} />

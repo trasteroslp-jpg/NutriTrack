@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-EK7P4MJSCB"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag('js', new Date());
+
+        gtag('config', 'G-EK7P4MJSCB');
+    </script>
+    <title>NutriTrack | Contador de Calorías IA y Escáner de Comida Visual</title>
+    <meta name="description"
+        content="Optimiza tu dieta con NutriTrack, el contador de calorías con IA más avanzado. Escanea tu comida con una foto, registra macros por voz y alcanza tus objetivos de salud sin esfuerzo.">
+    <meta name="keywords"
+        content="contador de calorias ia, escaner comida ia, nutricion inteligencia artificial, registro macros voz, app dieta inteligente, nutritrack">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://nutritrack-327c1.web.app/">
+    <meta property="og:title" content="NutriTrack | Revoluciona tu Dieta con IA">
+    <meta property="og:description"
+        content="La primera aplicación que entiende tu comida con solo mirarla. Registra calorías y macros en segundos.">
+    <meta property="og:image" content="https://nutritrack-327c1.web.app/hero-mockup-final.png">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://nutritrack-327c1.web.app/">
+    <meta property="twitter:title" content="NutriTrack | Inteligencia Artificial para tu Nutrición">
+    <meta property="twitter:description"
+        content="Analiza tu comida con una foto o nota de voz. Lleva el control de tus macros sin esfuerzo.">
+    <meta property="twitter:image" content="https://nutritrack-327c1.web.app/hero-mockup-final.png">
+
+    <link rel="canonical" href="https://nutritrack-327c1.web.app/" />
+    <link rel="icon" type="image/png" href="favicon.png?v=2">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Space+Grotesk:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+        rel="stylesheet" />
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#00e676",
+                        "primary-glow": "rgba(0, 230, 118, 0.4)",
+                        "background-dark": "#0A0F16",
+                        "background-darker": "#05080b",
+                        "stroke": "rgba(255, 255, 255, 0.1)",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk"],
+                        "outfit": ["Outfit"]
+                    },
+                },
+            },
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer base {
+            body {
+                @apply bg-background-dark text-white font-outfit overflow-x-hidden w-full;
+            }
+        }
+        
+        .glass {
+            background: rgba(15, 35, 25, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 230, 118, 0.2);
+        }
+        
+        .hero-glow {
+            position: fixed;
+            top: -20%;
+            left: -10%;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(0, 230, 118, 0.1) 0%, transparent 70%);
+            filter: blur(80px);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        @media (min-width: 1024px) {
+            .hero-glow {
+                width: 50%;
+                height: 50%;
+                background: radial-gradient(circle, rgba(0, 230, 118, 0.15) 0%, transparent 70%);
+                filter: blur(100px);
+            }
+        }
+        
+        .scan-line {
+            height: 3px;
+            background: linear-gradient(90deg, transparent, #00e676, transparent);
+            box-shadow: 0 0 20px #00e676;
+            position: absolute;
+            width: 100%;
+            z-index: 10;
+        }
+
+        .iphone-frame {
+            border: 8px solid #1a1a1a;
+            border-radius: 2.5rem;
+            position: relative;
+            background: #000;
+            overflow: hidden;
+            box-shadow: 0 20px 40px -10px rgba(0, 230, 118, 0.2);
+        }
+
+        @media (min-width: 768px) {
+            .iphone-frame {
+                border: 12px solid #1a1a1a;
+                border-radius: 3rem;
+                box-shadow: 0 25px 50px -12px rgba(0, 230, 118, 0.25);
+            }
+        }
+
+        .iphone-notch {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80px;
+            height: 18px;
+            background: #1a1a1a;
+            border-bottom-left-radius: 0.75rem;
+            border-bottom-right-radius: 0.75rem;
+            z-index: 50;
+        }
+
+        @media (min-width: 768px) {
+            .iphone-notch {
+                width: 120px;
+                height: 25px;
+                border-bottom-left-radius: 1rem;
+                border-bottom-right-radius: 1rem;
+            }
+        }
+
+        @keyframes scan {
+            0%, 100% { top: 15%; }
+            50% { top: 85%; }
+        }
+
+        .animate-scan {
+            animation: scan 4s ease-in-out infinite;
+        }
+
+        .fade-in-up {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.6s ease-out;
+        }
+
+        .fade-in-up.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Mobile Menu */
+        #mobile-menu {
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateX(100%);
+            display: flex; /* Always flex but hidden or outside */
+        }
+        
+        #mobile-menu.active {
+            transform: translateX(0);
+        }
+
+        .nav-link-mobile {
+            @apply text-2xl font-bold py-4 border-b border-white/5 w-full text-center;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="hero-glow"></div>
+
+    <!-- Navbar -->
+    <nav class="fixed top-0 w-full z-50 glass border-b border-primary/10">
+        <div class="max-w-7xl mx-auto px-4 md:px-6 py-4 flex justify-between items-center">
+            <a href="index.html" class="flex items-center gap-2 md:gap-3 hover:opacity-80 transition-opacity">
+                <img src="logo.png?v=2" alt="NutriTrack Logo"
+                    class="w-8 h-8 md:w-10 md:h-10 object-contain drop-shadow-[0_0_8px_rgba(0,230,118,0.3)]">
+                <div class="text-xl md:text-2xl font-extrabold tracking-tighter">
+                    Nutri<span class="text-primary">Track</span>
+                </div>
+            </a>
+
+            <!-- Desktop Links -->
+            <div class="hidden md:flex gap-8 items-center" id="nav-links">
+                <a href="#features"
+                    class="text-sm font-semibold text-gray-400 hover:text-white transition-colors">Características</a>
+                <a href="privacy.html"
+                    class="text-sm font-semibold text-gray-400 hover:text-white transition-colors">Privacidad</a>
+                <a href="#"
+                    class="bg-primary text-background-dark px-6 py-2 rounded-full font-bold text-sm transform hover:scale-105 transition-transform shadow-lg shadow-primary/20">
+                    Descargar App
+                </a>
+            </div>
+
+            <!-- Mobile Toggle -->
+            <button id="menu-toggle" class="md:hidden text-white p-2">
+                <span class="material-symbols-outlined text-3xl">menu</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Mobile Menu -->
+    <div id="mobile-menu"
+        class="fixed inset-0 z-[60] bg-background-dark hidden md:hidden flex-col items-center justify-center p-8">
+        <button id="menu-close" class="absolute top-6 right-6 text-white">
+            <span class="material-symbols-outlined text-4xl">close</span>
+        </button>
+        <div class="flex flex-col items-center gap-2 w-full">
+            <a href="#features" class="nav-link-mobile" onclick="toggleMenu()">Características</a>
+            <a href="privacy.html" class="nav-link-mobile">Privacidad</a>
+            <a href="mailto:trasteroslp@gmail.com" class="nav-link-mobile">Soporte</a>
+            <a href="#"
+                class="mt-8 bg-primary text-background-dark w-full py-5 rounded-2xl font-bold text-lg text-center shadow-2xl shadow-primary/20"
+                onclick="toggleMenu()">
+                Descargar App
+            </a>
+        </div>
+    </div>
+
+    <!-- Hero -->
+    <header
+        class="pt-28 md:pt-40 pb-16 md:pb-24 px-6 max-w-7xl mx-auto flex flex-col lg:grid lg:grid-cols-2 gap-12 items-center overflow-x-hidden">
+        <div class="fade-in-up text-center lg:text-left w-full">
+            <div
+                class="inline-block px-4 py-1.5 bg-white/5 border border-white/10 rounded-full text-[10px] md:text-xs font-bold mb-6">
+                Impulsado por Gemini AI 2.0 ✨
+            </div>
+            <h1 class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold leading-[1.1] mb-6 tracking-tight">
+                Nutrición Inteligente <br><span class="text-primary">Sin Esfuerzo</span>.
+            </h1>
+            <p class="text-lg md:text-xl text-gray-400 mb-8 md:mb-10 max-w-lg mx-auto lg:mx-0">
+                La primera aplicación que entiende tu comida con solo mirarla. Registra calorías, macros y progreso
+                mediante IA visual y de voz.
+            </p>
+            <div class="flex flex-col md:flex-row gap-4 justify-center lg:justify-start max-w-sm mx-auto md:max-w-none">
+                <a href="#"
+                    class="bg-primary text-background-dark px-8 py-4 rounded-full font-bold text-base md:text-lg hover:shadow-xl hover:shadow-primary/30 transition-all w-full md:w-auto">Empezar
+                    Gratis</a>
+                <a href="#features"
+                    class="bg-white/5 border border-white/10 px-8 py-4 rounded-full font-bold text-base md:text-lg hover:bg-white/10 transition-all w-full md:w-auto">Ver
+                    Demostración</a>
+            </div>
+        </div>
+        <div class="flex justify-center fade-in-up w-full max-w-md mx-auto lg:max-w-none px-4 box-border">
+            <img src="hero-mockup-final.png" alt="NutriTrack App Mockup"
+                class="max-w-full h-auto drop-shadow-[0_20px_50px_rgba(0,230,118,0.2)]">
+        </div>
+    </header>
+
+    <!-- Stats -->
+    <section class="bg-background-darker border-y border-white/5 py-12 mb-12 md:mb-20">
+        <div class="max-w-5xl mx-auto px-6 grid grid-cols-2 lg:grid-cols-3 gap-8 md:gap-12 text-center items-center">
+            <div>
+                <div class="text-3xl md:text-4xl font-extrabold text-primary mb-1">+10M</div>
+                <div class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Alimentos</div>
+            </div>
+            <div class="hidden lg:flex justify-center">
+                <div class="w-px h-12 bg-white/10"></div>
+            </div>
+            <div class="col-span-1 lg:col-span-1">
+                <div class="text-3xl md:text-4xl font-extrabold text-primary mb-1">+500k</div>
+                <div class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Loggeos</div>
+            </div>
+            <div
+                class="col-span-2 lg:col-span-1 flex flex-col justify-center items-center lg:block border-t lg:border-t-0 border-white/5 pt-8 lg:pt-0">
+                <div class="text-3xl md:text-4xl font-extrabold text-primary mb-1">98%</div>
+                <div class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Precisión IA</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SMART VISION CORE (Stitch Integration) -->
+    <section id="features" class="py-16 md:py-24 px-6 max-w-[1600px] mx-auto">
+        <div class="text-center mb-12 md:mb-20 fade-in-up">
+            <div
+                class="inline-block px-3 py-1 bg-primary/10 text-primary rounded-full text-[10px] font-bold uppercase tracking-widest mb-4">
+                Smart Vision Core
+            </div>
+            <h2 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold mb-4 font-display leading-tight">IA de última
+                <span class="text-primary">generación</span>
+            </h2>
+            <p class="text-base md:text-lg text-gray-400 max-w-2xl mx-auto">Vea cómo nuestro Neural Core analiza cada
+                nutriente de su
+                plato en tiempo real.</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+            <!-- iPhone Scanner -->
+            <div class="lg:col-span-4 flex justify-center fade-in-up">
+                <div class="iphone-frame w-[320px] h-[640px]">
+                    <div class="iphone-notch"></div>
+                    <div class="relative h-full w-full bg-cover bg-center"
+                        style="background-image: url('https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=1760&auto=format&fit=crop');">
+                        <div class="absolute inset-0 bg-black/30"></div>
+                        <div class="absolute inset-6">
+                            <!-- Corners -->
+                            <div
+                                class="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-primary rounded-tl-lg shadow-[0_0_10px_#00e676]">
+                            </div>
+                            <div
+                                class="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-primary rounded-tr-lg shadow-[0_0_10px_#00e676]">
+                            </div>
+                            <div
+                                class="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-primary rounded-bl-lg shadow-[0_0_10px_#00e676]">
+                            </div>
+                            <div
+                                class="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-primary rounded-br-lg shadow-[0_0_10px_#00e676]">
+                            </div>
+                            <div class="scan-line animate-scan"></div>
+
+                            <!-- Tags -->
+                            <div
+                                class="absolute top-[20%] left-0 glass px-3 py-1.5 rounded-lg flex items-center gap-2 text-[10px] font-bold text-primary">
+                                <div class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></div> Salmon - 120 kcal
+                            </div>
+                            <div
+                                class="absolute top-[40%] right-0 glass px-3 py-1.5 rounded-lg flex items-center gap-2 text-[10px] font-bold text-primary">
+                                <div class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></div> Avocado - 160 kcal
+                            </div>
+                        </div>
+
+                        <!-- Mobile UI Overlay -->
+                        <div class="absolute bottom-0 w-full glass p-6 border-t border-primary/30">
+                            <div class="text-[10px] font-bold text-primary uppercase tracking-widest mb-1">Total Energy
+                            </div>
+                            <div class="text-3xl font-extrabold mb-4 font-display">500 <span
+                                    class="text-sm font-bold text-primary">kcal</span></div>
+                            <div class="flex justify-between">
+                                <div class="flex flex-col items-center">
+                                    <div class="relative w-10 h-10 mb-1">
+                                        <svg class="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                                            <circle cx="18" cy="18" r="16" fill="none" class="stroke-white/10"
+                                                stroke-width="3"></circle>
+                                            <circle cx="18" cy="18" r="16" fill="none" class="stroke-primary"
+                                                stroke-width="3" stroke-dasharray="100" stroke-dashoffset="65"></circle>
+                                        </svg>
+                                        <span
+                                            class="absolute inset-0 flex items-center justify-center text-[8px] font-bold text-white">35g</span>
+                                    </div>
+                                    <div class="text-[7px] font-bold text-gray-500 uppercase">Prot</div>
+                                </div>
+                                <div class="flex flex-col items-center">
+                                    <div class="relative w-10 h-10 mb-1">
+                                        <svg class="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                                            <circle cx="18" cy="18" r="16" fill="none" class="stroke-white/10"
+                                                stroke-width="3"></circle>
+                                            <circle cx="18" cy="18" r="16" fill="none" class="stroke-primary"
+                                                stroke-width="3" stroke-dasharray="100" stroke-dashoffset="45"></circle>
+                                        </svg>
+                                        <span
+                                            class="absolute inset-0 flex items-center justify-center text-[8px] font-bold text-white">55g</span>
+                                    </div>
+                                    <div class="text-[7px] font-bold text-gray-500 uppercase">Carb</div>
+                                </div>
+                                <div class="flex flex-col items-center">
+                                    <div class="relative w-10 h-10 mb-1">
+                                        <svg class="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                                            <circle cx="18" cy="18" r="16" fill="none" class="stroke-white/10"
+                                                stroke-width="3"></circle>
+                                            <circle cx="18" cy="18" r="16" fill="none" class="stroke-primary"
+                                                stroke-width="3" stroke-dasharray="100" stroke-dashoffset="80"></circle>
+                                        </svg>
+                                        <span
+                                            class="absolute inset-0 flex items-center justify-center text-[8px] font-bold text-white">20g</span>
+                                    </div>
+                                    <div class="text-[7px] font-bold text-gray-500 uppercase">Fat</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dashboard Details -->
+            <div class="lg:col-span-8 space-y-8 fade-in-up delay-1">
+                <div class="glass p-6 md:p-10 rounded-3xl">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
+                        <h3 class="text-xl md:text-2xl font-bold font-display flex items-center gap-3">
+                            <span class="material-symbols-outlined text-primary scale-110 md:scale-125">analytics</span>
+                            Progreso Diario
+                        </h3>
+                        <span class="text-xs md:text-sm text-gray-500 font-medium font-outfit">Miércoles, Mayo 24</span>
+                    </div>
+                    <div class="grid md:grid-cols-2 gap-10 md:gap-12">
+                        <div class="space-y-6">
+                            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2">
+                                <span class="text-gray-400 font-medium text-xs md:text-sm">Calorías restantes</span>
+                                <span class="text-2xl md:text-3xl font-extrabold text-white font-display">1,240 <small
+                                        class="text-[10px] md:text-xs font-normal text-gray-500">/ 2,100
+                                        kcal</small></span>
+                            </div>
+                            <div class="w-full h-3 md:h-4 bg-white/5 rounded-full overflow-hidden">
+                                <div class="h-full bg-primary shadow-[0_0_15px_rgba(0,230,118,0.5)]" style="width: 59%">
+                                </div>
+                            </div>
+                            <div
+                                class="bg-primary/5 border border-primary/20 p-4 md:p-5 rounded-2xl flex gap-3 md:gap-4">
+                                <span class="material-symbols-outlined text-primary text-xl">lightbulb</span>
+                                <p class="text-xs md:text-sm text-gray-400 leading-relaxed font-medium italic">"Intenta
+                                    añadir más
+                                    proteína en tu próxima comida para alcanzar tu meta de 120g."</p>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3 md:gap-4">
+                            <div class="glass-stat p-4 md:p-6 rounded-2xl bg-white/[0.02] border border-white/5">
+                                <div
+                                    class="text-[9px] md:text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">
+                                    Proteína
+                                </div>
+                                <div class="text-2xl md:text-3xl font-extrabold text-primary font-display">64g</div>
+                            </div>
+                            <div class="glass-stat p-4 md:p-6 rounded-2xl bg-white/[0.02] border border-white/5">
+                                <div
+                                    class="text-[9px] md:text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">
+                                    Carbos
+                                </div>
+                                <div class="text-2xl md:text-3xl font-extrabold text-primary font-display">120g</div>
+                            </div>
+                            <div class="glass-stat p-4 md:p-6 rounded-2xl bg-white/[0.02] border border-white/5">
+                                <div
+                                    class="text-[9px] md:text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">
+                                    Grasas
+                                </div>
+                                <div class="text-2xl md:text-3xl font-extrabold text-primary font-display">45g</div>
+                            </div>
+                            <div class="glass-stat p-4 md:p-6 rounded-2xl bg-white/[0.02] border border-white/5">
+                                <div
+                                    class="text-[9px] md:text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">
+                                    Fibra
+                                </div>
+                                <div class="text-2xl md:text-3xl font-extrabold text-primary font-display">18g</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- History -->
+                <div class="glass p-6 md:p-8 rounded-3xl">
+                    <div class="flex justify-between items-center mb-6">
+                        <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Historial de
+                            Escaneo</span>
+                        <a href="#"
+                            class="text-[10px] text-primary font-bold hover:underline tracking-widest uppercase">Ver
+                            todo</a>
+                    </div>
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div
+                            class="bg-white/5 border border-white/10 p-4 md:p-5 rounded-2xl flex items-center gap-4 md:gap-5 hover:bg-white/10 transition-all cursor-pointer">
+                            <div class="w-12 h-12 md:w-16 md:h-16 rounded-xl bg-cover bg-center border border-white/5 shrink-0"
+                                style="background-image: url('https://images.unsplash.com/photo-1512621776951-a57141f2eefd?q=80&w=2070&auto=format&fit=crop');">
+                            </div>
+                            <div class="min-w-0">
+                                <div class="font-bold text-xs md:text-sm text-white truncate">Ensalada Mediterránea
+                                </div>
+                                <div class="text-[10px] md:text-xs text-gray-500">320 kcal • Hoy, 1:15 PM</div>
+                            </div>
+                            <span
+                                class="material-symbols-outlined ml-auto text-gray-700 text-lg md:text-2xl">chevron_right</span>
+                        </div>
+                        <div
+                            class="bg-white/5 border border-white/10 p-4 md:p-5 rounded-2xl flex items-center gap-4 md:gap-5 hover:bg-white/10 transition-all cursor-pointer">
+                            <div class="w-12 h-12 md:w-16 md:h-16 rounded-xl bg-cover bg-center border border-white/5 shrink-0"
+                                style="background-image: url('https://images.unsplash.com/photo-1525351484163-7529414344d8?q=80&w=1760&auto=format&fit=crop');">
+                            </div>
+                            <div class="min-w-0">
+                                <div class="font-bold text-xs md:text-sm text-white truncate">Tostada de Aguacate</div>
+                                <div class="text-[10px] md:text-xs text-gray-500">280 kcal • Hoy, 9:20 AM</div>
+                            </div>
+                            <span
+                                class="material-symbols-outlined ml-auto text-gray-700 text-lg md:text-2xl">chevron_right</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing -->
+    <section class="py-16 md:py-24 px-6 max-w-5xl mx-auto">
+        <div class="text-center mb-12 md:mb-20 fade-in-up">
+            <div
+                class="inline-block px-3 py-1 bg-primary/10 text-primary rounded-full text-[10px] font-bold uppercase tracking-widest mb-4">
+                Suscripción
+            </div>
+            <h2 class="text-3xl md:text-4xl font-extrabold mb-4 font-display">Elige tu plan <span
+                    class="text-primary">PRO</span>
+            </h2>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-6 md:gap-8 items-center fade-in-up">
+            <div class="glass p-8 md:p-10 rounded-3xl border-white/10 order-2 md:order-1">
+                <h3 class="text-xl md:text-2xl font-bold mb-2 font-display">NutriTrack Free</h3>
+                <div class="text-2xl md:text-3xl font-extrabold mb-8 font-display">€0 <span
+                        class="text-sm font-normal text-gray-500 font-outfit">/ siempre</span></div>
+                <ul class="space-y-4 mb-10 text-gray-400 text-xs md:text-sm">
+                    <li class="flex items-center gap-3">✓ Escáner de productos básico</li>
+                    <li class="flex items-center gap-3">✓ Registro manual de comidas</li>
+                    <li class="flex items-center gap-3">✓ Seguimiento de progreso</li>
+                </ul>
+                <a href="#" class="block text-center py-4 bg-white/5 rounded-2xl font-bold text-gray-400 text-sm">Plan
+                    Actual</a>
+            </div>
+
+            <div
+                class="glass p-8 md:p-10 rounded-3xl border-primary relative overflow-hidden bg-primary/5 order-1 md:order-2">
+                <div
+                    class="absolute top-0 right-0 bg-primary text-background-dark px-4 py-1.5 text-[10px] font-bold rounded-bl-xl tracking-tighter">
+                    MÁS ELEGIDO</div>
+                <h3 class="text-xl md:text-2xl font-bold mb-2 font-display">NutriTrack PRO</h3>
+                <div class="text-3xl md:text-4xl font-extrabold mb-8 font-display">€4.99 <span
+                        class="text-sm font-normal text-gray-500 font-outfit">/ mes</span></div>
+                <ul class="space-y-4 mb-10 text-sm">
+                    <li class="flex items-center gap-3 font-bold text-white font-display">✓ Escáner IA Visual Ilimitado
+                    </li>
+                    <li class="flex items-center gap-3 font-bold text-white font-display">✓ Registro por Voz Avanzado
+                    </li>
+                    <li class="flex items-center gap-3 text-gray-300">✓ Sincronización Health Connect</li>
+                    <li class="flex items-center gap-3 text-gray-300">✓ Análisis PRO personalizado</li>
+                </ul>
+                <a href="#"
+                    class="block text-center py-5 bg-primary text-background-dark rounded-2xl font-bold transform hover:scale-[1.02] transition-all text-sm shadow-xl shadow-primary/20">Probar
+                    3 días gratis</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="py-12 border-t border-white/5 max-w-7xl mx-auto px-6">
+        <div class="flex flex-col md:flex-row justify-between items-center gap-10 text-center md:text-left">
+            <a href="index.html" class="text-2xl font-extrabold">Nutri<span class="text-primary">Track</span></a>
+            <div class="flex flex-wrap justify-center gap-6 md:gap-8 text-sm text-gray-500 font-medium">
+                <a href="#features" class="hover:text-primary transition-colors">Características</a>
+                <a href="privacy.html" class="hover:text-primary transition-colors">Privacidad</a>
+                <a href="#" class="hover:text-primary transition-colors">Cookies</a>
+                <a href="mailto:trasteroslp@gmail.com" class="hover:text-primary transition-colors">Soporte</a>
+            </div>
+            <div class="text-[10px] md:text-xs text-gray-600 font-medium">© 2026 Libunca 2002 SL.<br class="md:hidden">
+                Todos los derechos reservados.</div>
+        </div>
+    </footer>
+
+    <!-- Cookie Banner -->
+    <div id="cookie-banner"
+        class="fixed bottom-6 left-6 right-6 md:left-auto md:max-w-md glass p-6 rounded-3xl z-[100] transform translate-y-[150%] transition-transform duration-500 shadow-2xl border-primary/20">
+        <div class="flex flex-col gap-4">
+            <div class="flex items-start gap-4">
+                <div
+                    class="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary shrink-0">
+                    <span class="material-symbols-outlined">cookie</span>
+                </div>
+                <div>
+                    <h4 class="font-bold text-white mb-1">Control de Cookies</h4>
+                    <p class="text-xs text-gray-400 leading-relaxed">
+                        Utilizamos Google Analytics para entender cómo usas nuestra web y mejorar tu experiencia. Al
+                        continuar, aceptas nuestra <a href="privacy.html" class="text-primary hover:underline">Política
+                            de Cookies</a>.
+                    </p>
+                </div>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="acceptCookies()"
+                    class="flex-1 py-2 bg-primary text-background-dark rounded-xl font-bold text-xs hover:scale-105 transition-all">Aceptar
+                    todo</button>
+                <button onclick="dismissBanner()"
+                    class="flex-1 py-2 bg-white/5 text-gray-400 rounded-xl font-bold text-xs hover:bg-white/10 transition-all">Solo
+                    esenciales</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Mobile Menu Logic
+        const menuToggle = document.getElementById('menu-toggle');
+        const menuClose = document.getElementById('menu-close');
+        const mobileMenu = document.getElementById('mobile-menu');
+
+        function toggleMenu() {
+            mobileMenu.classList.toggle('hidden');
+            setTimeout(() => {
+                mobileMenu.classList.toggle('active');
+            }, 10);
+            document.body.classList.toggle('overflow-hidden');
+        }
+
+        menuToggle.addEventListener('click', toggleMenu);
+        menuClose.addEventListener('click', toggleMenu);
+
+        // Cookie logic
+        function acceptCookies() {
+            localStorage.setItem('cookiesAccepted', 'true');
+            dismissBanner();
+        }
+
+        function dismissBanner() {
+            document.getElementById('cookie-banner').classList.add('translate-y-[150%]');
+        }
+
+        // Show banner after a short delay if not accepted
+        window.addEventListener('load', () => {
+            if (!localStorage.getItem('cookiesAccepted')) {
+                setTimeout(() => {
+                    document.getElementById('cookie-banner').classList.remove('translate-y-[150%]');
+                }, 2000);
+            }
+        });
+
+        // Intersection Observer for scroll animations
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('.fade-in-up').forEach(el => observer.observe(el));
+    </script>
+</body>
+
+</html>

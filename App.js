@@ -3,9 +3,11 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import AppNavigator from './src/navigation/AppNavigator';
 import { AppProvider } from './src/context/AppContext';
-import { StripeProvider } from '@stripe/stripe-react-native';
+import Purchases from 'react-native-purchases';
+import { useEffect } from 'react';
+import Constants from 'expo-constants';
 
-const STRIPE_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+const REVENUECAT_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_GOOGLE_API_KEY;
 
 // Error Boundary para capturar errores y mostrarlos en pantalla en vez de cerrar la App
 class ErrorBoundary extends React.Component {
@@ -54,17 +56,27 @@ const errStyles = StyleSheet.create({
 });
 
 export default function App() {
+  useEffect(() => {
+    // Protección para Expo Go: Solo configurar si el API Key existe y NO estamos en Expo Go
+    // Purchases no funciona en Expo Go porque es un módulo nativo.
+    const setupPurchases = async () => {
+      try {
+        if (REVENUECAT_API_KEY && Constants.appOwnership !== 'expo') {
+          await Purchases.configure({ apiKey: REVENUECAT_API_KEY });
+        }
+      } catch (e) {
+        console.log('RevenueCat no disponible en este entorno (Expo Go)');
+      }
+    };
+    setupPurchases();
+  }, []);
+
   return (
     <ErrorBoundary>
       <SafeAreaProvider>
-        <StripeProvider
-          publishableKey={STRIPE_PUBLISHABLE_KEY}
-          merchantIdentifier="merchant.com.david.nutritrack"
-        >
-          <AppProvider>
-            <AppNavigator />
-          </AppProvider>
-        </StripeProvider>
+        <AppProvider>
+          <AppNavigator />
+        </AppProvider>
       </SafeAreaProvider>
     </ErrorBoundary>
   );

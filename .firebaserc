@@ -1,5 +1,18 @@
 {
   "projects": {
     "default": "nutritrack-327c1"
-  }
+  },
+  "targets": {
+    "nutritrack-327c1": {
+      "hosting": {
+        "admin": [
+          "nutritrack-admin-nt"
+        ],
+        "website": [
+          "nutritrack-327c1"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

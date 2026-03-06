@@ -5,6 +5,7 @@ import { X, Plus, Minus, Check, ShoppingBag } from 'lucide-react-native';
 import { colors } from '../theme/colors';
 import { r } from '../utils/formatNumber';
 import { useApp } from '../context/AppContext';
+import { sanitizeNumber } from '../utils/sanitize';
 
 const BarcodeScanner = ({ visible, onClose }) => {
     const { width } = useWindowDimensions();
@@ -136,7 +137,7 @@ const BarcodeScanner = ({ visible, onClose }) => {
                                     style={styles.quantityInput}
                                     keyboardType="numeric"
                                     value={quantity}
-                                    onChangeText={setQuantity}
+                                    onChangeText={(val) => setQuantity(sanitizeNumber(val))}
                                     selectTextOnFocus
                                 />
                                 <TouchableOpacity style={styles.qBtn} onPress={() => adjustQuantity(10)}>

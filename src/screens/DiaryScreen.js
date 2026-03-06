@@ -7,6 +7,7 @@ import { useApp } from '../context/AppContext';
 import { useNavigation } from '@react-navigation/native';
 import { analyzeMealGroup } from '../utils/coachLogic';
 import MealCoach from '../components/MealCoach';
+import { sanitizeText, sanitizeNumber, sanitizeName } from '../utils/sanitize';
 import { Calendar as RNCalendar, LocaleConfig } from 'react-native-calendars';
 
 // Configurar locale español para el calendario
@@ -330,7 +331,7 @@ const DiaryScreen = () => {
                                     placeholder="Filtrar por fecha o mes..."
                                     placeholderTextColor={colors.textSecondary}
                                     value={historySearch}
-                                    onChangeText={setHistorySearch}
+                                    onChangeText={(val) => setHistorySearch(sanitizeText(val))}
                                 />
                                 {(historySearch !== '' || startDate) && (
                                     <TouchableOpacity onPress={clearDateFilter}>
@@ -413,7 +414,7 @@ const DiaryScreen = () => {
                                 <TextInput
                                     style={styles.input}
                                     value={editTitle}
-                                    onChangeText={setEditTitle}
+                                    onChangeText={(val) => setEditTitle(sanitizeName(val))}
                                     returnKeyType="done"
                                 />
 
@@ -428,7 +429,7 @@ const DiaryScreen = () => {
                                 <TextInput
                                     style={styles.input}
                                     value={editGrams}
-                                    onChangeText={setEditGrams}
+                                    onChangeText={(val) => setEditGrams(sanitizeNumber(val))}
                                     keyboardType="numeric"
                                     returnKeyType="done"
                                 />
@@ -437,7 +438,7 @@ const DiaryScreen = () => {
                                 <TextInput
                                     style={styles.input}
                                     value={editDate}
-                                    onChangeText={setEditDate}
+                                    onChangeText={(val) => setEditDate(sanitizeText(val))}
                                     returnKeyType="done"
                                 />
 

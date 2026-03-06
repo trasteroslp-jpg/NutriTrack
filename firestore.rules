@@ -11,15 +11,23 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.email == 'daforg@hotmail.com';
     }
 
+    // Validación de cadenas para evitar inyecciones / abusos
+    function isValidStringLength(str, min, max) {
+      return str is string && str.size() >= min && str.size() <= max;
+    }
+
     // 1. Ranking Público (SOLO nombre, xp, foto)
-    // Cualquier usuario autenticado puede leer, pero solo el dueño puede escribir su entrada
     match /leaderboard_profiles/{userId} {
       allow read: if request.auth != null;
-      allow write: if isOwner(userId) || isAdmin();
+      // Strict Input Validation & Sanitization
+      allow write: if isOwner(userId) && (
+        !request.resource.data.keys().hasAny(['isAdmin', 'isPro']) && 
+        isValidStringLength(request.resource.data.name, 1, 50) &&
+        request.resource.data.xp is number && request.resource.data.xp >= 0
+      ) || isAdmin();
     }
 
     // 2. Datos Privados (email, peso, edad, historial, comidas...)
-    // BLINDADO: Solo el dueño puede acceder. Admin puede leer (para Back Office)
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       allow write: if isOwner(userId) || isAdmin();
@@ -32,8 +40,17 @@ service cloud.firestore {
 
     // 3. Catálogo Global de Alimentos
     match /global_foods/{foodId} {
-      allow read, create: if request.auth != null;
+      allow read: if request.auth != null;
+      // Strict Schema Validation & Sanitization para usuarios (solo pueden crear)
+      allow create: if request.auth != null &&
+        request.resource.data.keys().hasAll(['name', 'calories', 'protein', 'carbs', 'fat']) &&
+        isValidStringLength(request.resource.data.name, 1, 100) &&
+        request.resource.data.calories is number && request.resource.data.calories >= 0 && request.resource.data.calories <= 2000 &&
+        request.resource.data.protein is number && request.resource.data.protein >= 0 && request.resource.data.protein <= 200 &&
+        request.resource.data.carbs is number && request.resource.data.carbs >= 0 && request.resource.data.carbs <= 200 &&
+        request.resource.data.fat is number && request.resource.data.fat >= 0 && request.resource.data.fat <= 200;
       allow update, delete: if isAdmin();
     }
   }
 }
+// force deploy cache invalidation
