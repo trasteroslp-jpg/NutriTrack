@@ -2,7 +2,7 @@ const { withGradleProperties } = require('expo/config-plugins');
 
 /**
  * Custom Expo Config Plugin to optimize Gradle properties for KSP/Kotlin stability.
- * This is crucial for fixing "Internal compiler error" in kspDebugKotlin.
+ * Reduced memory allocations to be safe for EAS Standard workers (typically 8GB).
  */
 module.exports = function withKspStability(config) {
     return withGradleProperties(config, (config) => {
@@ -13,17 +13,17 @@ module.exports = function withKspStability(config) {
                 item.key !== 'ksp.incremental'
         );
 
-        // 2. Set high stability properties
+        // 2. Set high stability properties - SAFE FOR EAS
         config.modResults.push(
             {
                 type: 'property',
                 key: 'org.gradle.jvmargs',
-                value: '-Xmx10240m -Xms2048m -XX:MaxMetaspaceSize=1536m -XX:+UseParallelGC -Dkotlin.daemon.jvm.options="-Xmx6g"',
+                value: '-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:+UseParallelGC -Dkotlin.daemon.jvm.options="-Xmx2048m"',
             },
             {
                 type: 'property',
                 key: 'kotlin.daemon.jvm.options',
-                value: '-Xmx6g',
+                value: '-Xmx2048m',
             },
             {
                 type: 'property',
@@ -33,7 +33,7 @@ module.exports = function withKspStability(config) {
             {
                 type: 'property',
                 key: 'ksp.allow.all.files',
-                value: 'true',
+                value: 'false', // Retornar fallback seguro
             }
         );
 
