@@ -56,6 +56,7 @@
                 "GRADLE_OPTS": "-Xmx8192m"
             },
             "channel": "production",
+            "node": "20.19.4",
             "android": {
                 "resourceClass": "medium",
                 "image": "ubuntu-22.04-jdk-17-ndk-r26b",
