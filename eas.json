@@ -1,0 +1,66 @@
+{
+    "cli": {
+        "version": ">= 18.0.1",
+        "appVersionSource": "remote"
+    },
+    "build": {
+        "development": {
+            "developmentClient": true,
+            "distribution": "internal",
+            "env": {
+                "NPM_CONFIG_LEGACY_PEER_DEPS": "true",
+                "EXPO_PUBLIC_GEMINI_API_KEY": "AIzaSyDd3yViGv0i-OFCtM6Ljd_v0Ia7ShTs_s0",
+                "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyB-a_ksawsMnTQ1myC83B8V0erCK-dfehg",
+                "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "nutritrack-327c1.firebaseapp.com",
+                "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "nutritrack-327c1",
+                "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "nutritrack-327c1.firebasestorage.app",
+                "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "527331333577",
+                "EXPO_PUBLIC_FIREBASE_APP_ID": "1:527331333577:web:0efb5bd83bfc34124c4418",
+                "EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID": "G-EK7P4MJSCB",
+                "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51T3b53CBsHEPENNOSLUwE0ZbxWi2tvzwQ92VOMZqU8ADPEtIH1rbD61YIzOsRjmW933ZMWUOzuNIRwLCNCnLIJtz00Di2tT4lc",
+                "GRADLE_OPTS": "-Xmx8192m"
+            },
+            "channel": "preview"
+        },
+        "preview": {
+            "distribution": "internal",
+            "env": {
+                "NPM_CONFIG_LEGACY_PEER_DEPS": "true",
+                "EXPO_PUBLIC_GEMINI_API_KEY": "AIzaSyDd3yViGv0i-OFCtM6Ljd_v0Ia7ShTs_s0",
+                "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyB-a_ksawsMnTQ1myC83B8V0erCK-dfehg",
+                "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "nutritrack-327c1.firebaseapp.com",
+                "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "nutritrack-327c1",
+                "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "nutritrack-327c1.firebasestorage.app",
+                "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "527331333577",
+                "EXPO_PUBLIC_FIREBASE_APP_ID": "1:527331333577:web:0efb5bd83bfc34124c4418",
+                "EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID": "G-EK7P4MJSCB",
+                "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51T3b53CBsHEPENNOSLUwE0ZbxWi2tvzwQ92VOMZqU8ADPEtIH1rbD61YIzOsRjmW933ZMWUOzuNIRwLCNCnLIJtz00Di2tT4lc",
+                "GRADLE_OPTS": "-Xmx8192m"
+            },
+            "android": {
+                "gradleCommand": ":app:assembleRelease --stacktrace"
+            },
+            "channel": "preview"
+        },
+        "production": {
+            "env": {
+                "EXPO_PUBLIC_GEMINI_API_KEY": "AIzaSyDd3yViGv0i-OFCtM6Ljd_v0Ia7ShTs_s0",
+                "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyB-a_ksawsMnTQ1myC83B8V0erCK-dfehg",
+                "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "nutritrack-327c1.firebaseapp.com",
+                "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "nutritrack-327c1",
+                "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "nutritrack-327c1.firebasestorage.app",
+                "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "527331333577",
+                "EXPO_PUBLIC_FIREBASE_APP_ID": "1:527331333577:web:0efb5bd83bfc34124c4418",
+                "EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID": "G-EK7P4MJSCB",
+                "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51T3b53CBsHEPENNOSLUwE0ZbxWi2tvzwQ92VOMZqU8ADPEtIH1rbD61YIzOsRjmW933ZMWUOzuNIRwLCNCnLIJtz00Di2tT4lc",
+                "GRADLE_OPTS": "-Xmx8192m"
+            },
+            "channel": "production",
+            "android": {
+                "resourceClass": "medium",
+                "image": "ubuntu-22.04-jdk-17-ndk-r26b",
+                "gradleCommand": ":app:bundleRelease"
+            }
+        }
+    }
+}
