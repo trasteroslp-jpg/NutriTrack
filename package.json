@@ -10,7 +10,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "eas-build-post-install": "node eas-build-post-install.js",
+    "eas-build-post-install": "npx patch-package && node eas-build-post-install.js",
     "postinstall": "patch-package"
   },
   "dependencies": {
