@@ -9,7 +9,8 @@ module.exports = function withKspStability(config) {
         item.key !== 'ksp.incremental' &&
         item.key !== 'ksp.allow.all.files' &&
         item.key !== 'kotlin.compiler.execution.strategy' &&
-        item.key !== 'org.gradle.parallel'
+        item.key !== 'org.gradle.parallel' &&
+        item.key !== 'ksp.version'
     );
 
     config.modResults.push(
@@ -42,6 +43,11 @@ module.exports = function withKspStability(config) {
         type: 'property',
         key: 'org.gradle.parallel',
         value: 'false',
+      },
+      {
+        type: 'property',
+        key: 'ksp.version',
+        value: '2.1.20-1.0.32',
       }
     );
 
