@@ -30,6 +30,7 @@
     <meta-data android:name="expo.modules.updates.EXPO_UPDATES_CHECK_ON_LAUNCH" android:value="ALWAYS"/>
     <meta-data android:name="expo.modules.updates.EXPO_UPDATES_LAUNCH_WAIT_MS" android:value="0"/>
     <meta-data android:name="expo.modules.updates.EXPO_UPDATE_URL" android:value="https://u.expo.dev/db844fef-e8c3-4bdb-b7fe-de25ececa9cf"/>
+    <meta-data android:name="health_permissions_rationale" android:resource="@string/health_permissions_rationale"/>
     <activity android:name=".MainActivity" android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|uiMode" android:launchMode="singleTask" android:windowSoftInputMode="adjustResize" android:theme="@style/Theme.App.SplashScreen" android:exported="true" android:screenOrientation="portrait">
       <intent-filter>
         <action android:name="android.intent.action.MAIN"/>
@@ -46,13 +47,10 @@
         <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE"/>
         <category android:name="android.intent.category.DEFAULT"/>
       </intent-filter>
-      <!-- Android 14 system rationale -->
       <intent-filter>
-        <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
-        <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+        <action android:name="android.intent.action.VIEW_PERMISSION_USAGE"/>
+        <category android:name="android.intent.category.HEALTH_PERMISSIONS"/>
       </intent-filter>
     </activity>
-
-    <meta-data android:name="health_permissions_rationale" android:resource="@string/health_permissions_rationale"/>
   </application>
 </manifest>

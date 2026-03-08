@@ -37,6 +37,24 @@
         "com.android.vending.BILLING",
         "android.permission.health.READ_WEIGHT",
         "android.permission.health.WRITE_WEIGHT"
+      ],
+      "intentFilters": [
+        {
+          "action": "androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE",
+          "category": [
+            "android.intent.category.DEFAULT"
+          ]
+        },
+        {
+          "action": "android.intent.action.VIEW",
+          "category": [
+            "android.intent.category.DEFAULT"
+          ],
+          "data": {
+            "scheme": "nutritrack",
+            "host": "health-permissions"
+          }
+        }
       ]
     },
     "plugins": [

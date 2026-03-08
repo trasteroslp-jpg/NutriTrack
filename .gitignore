@@ -41,5 +41,22 @@ temp-expo-test/
 *.tsbuildinfo
 
 # generated native folders
-# /ios
-# /android
+/ios
+/android
+
+# Allow specific android customizations for Health Connect & KSP
+!/android/app/src/main/AndroidManifest.xml
+!/android/app/src/main/java/com/david/nutritrack/MainActivity.kt
+!/android/app/src/main/res/values/strings.xml
+!/android/app/proguard-rules.pro
+!/android/gradle/init.d/force-ksp.gradle
+!/android/app/build.gradle
+!/android/build.gradle
+!/android/gradle.properties
+!/android/settings.gradle
+!/android/gradlew
+!/android/gradlew.bat
+!/android/gradle/wrapper/gradle-wrapper.properties
+!/android/gradle/wrapper/gradle-wrapper.jar
+!/android/app/google-services.json
+!/android/app/debug.keystore
