@@ -53,6 +53,7 @@
                 "EXPO_PUBLIC_FIREBASE_APP_ID": "1:527331333577:web:0efb5bd83bfc34124c4418",
                 "EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID": "G-EK7P4MJSCB",
                 "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51T3b53CBsHEPENNOSLUwE0ZbxWi2tvzwQ92VOMZqU8ADPEtIH1rbD61YIzOsRjmW933ZMWUOzuNIRwLCNCnLIJtz00Di2tT4lc",
+                "EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID": "Libunca 2002 SL Pro",
                 "GRADLE_OPTS": "-Xmx8192m"
             },
             "channel": "production",
@@ -74,6 +75,7 @@
                 "EXPO_PUBLIC_FIREBASE_APP_ID": "1:527331333577:web:0efb5bd83bfc34124c4418",
                 "EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID": "G-EK7P4MJSCB",
                 "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51T3b53CBsHEPENNOSLUwE0ZbxWi2tvzwQ92VOMZqU8ADPEtIH1rbD61YIzOsRjmW933ZMWUOzuNIRwLCNCnLIJtz00Di2tT4lc",
+                "EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID": "Libunca 2002 SL Pro",
                 "GRADLE_OPTS": "-Xmx8192m"
             },
             "channel": "production",
