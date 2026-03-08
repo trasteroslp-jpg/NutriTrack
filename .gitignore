@@ -41,5 +41,5 @@ temp-expo-test/
 *.tsbuildinfo
 
 # generated native folders
-/ios
-/android
+# /ios
+# /android
